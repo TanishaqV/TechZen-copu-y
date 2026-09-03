@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "TechZen Events"
+description = "A branded event hub for the TechZen community, with public event discovery, attendee accounts, and event registration management."
+version = "1.0.0"
+id = "artifacts/techzen-events"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 23983
+
+[services.development]
+run = "pnpm --filter @workspace/techzen-events run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/techzen-events", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/techzen-events/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "23983"
+BASE_PATH = "/"

@@ -1,0 +1,934 @@
+import { ArrowLeft, ArrowUpRight, CalendarDays, Check, Code, Copy, FileText, MapPin, Plus, Send, ShieldCheck, Trash2, Upload, User, Users, GraduationCap } from 'lucide-react';
+import { useEffect, useState, useMemo, type FormEvent, type ChangeEvent } from 'react';
+import { Link, useParams, useLocation } from 'wouter';
+import { useSafeUser as useUser } from '@/lib/clerk-safe';
+import { SiteShell } from '@/components/site-shell';
+import { INITIAL_EVENTS } from '@/mockData';
+import { useEvents } from '@/context/EventContext';
+import { useAuth } from '@/context/AuthContext';
+
+// TechZen EventDetail Page with Auth Gate
+function longDate(value: string) {
+  try {
+    return new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }).format(new Date(value));
+  } catch (e) {
+    return value;
+  }
+}
+
+const TEAMMATE_ROLE_OPTIONS = [
+  '-- Select Role --',
+  'Software Developer',
+  'Hardware Specialist',
+  'AI / ML Engineer',
+  'UI / UX Designer',
+  'Product Manager',
+  'Presenter / Pitcher',
+  'Research Member',
+  'Others (Type Custom Role)'
+];
+
+export default function EventDetail() {
+  const params = useParams<{ eventId: string }>();
+  const rawId = params.eventId;
+  const [, setLocation] = useLocation();
+  const { user: clerkUser } = useUser();
+  const { currentUser, isAdmin, ADMIN_EMAIL, openAuth } = useAuth();
+  const { events, setSelectedEventId, deleteEvent, showToast } = useEvents();
+
+  const activeUserEmail = currentUser?.email || clerkUser?.emailAddresses[0]?.emailAddress || '';
+  const effectiveIsAdmin = isAdmin || activeUserEmail.toLowerCase() === ADMIN_EMAIL.toLowerCase();
+
+  // Find exact target event from events list or mockData
+  const displayEvent = useMemo(() => {
+    return (events || []).find((e) => e.id === rawId) || INITIAL_EVENTS.find((e) => e.id === rawId) || {
+      id: rawId,
+      title: rawId === 'operation-cipher-2026' ? 'Operation Cipher 2026' : 'TechZen QuizVerse 2026',
+      category: rawId === 'operation-cipher-2026' ? 'HACKATHON' : 'QUIZ',
+      format: 'ONLINE',
+      date: rawId === 'operation-cipher-2026' ? 'June 29 - July 20, 2026' : 'May 12, 2026',
+      location: 'National Level Online Hackathon',
+      capacity: 500,
+      maxTeamSize: 4,
+      registeredCount: 480,
+      tags: ['Hackathon', 'Money Heist', 'Software Track', 'Hardware Track'],
+      coverImage: rawId === 'operation-cipher-2026' ? '/operation-cipher.png' : '/quizverse.png',
+      description: rawId === 'operation-cipher-2026'
+        ? `THE PLAN. THE CODE. THE ESCAPE.\nTechZen Presents: OPERATION CIPHER — A Money Heist Themed National Level Hackathon. Powered by Unstop.\n\nheist_blueprint.sh\ncipher@techzen:~$ ./initiate_heist.sh\n[*] Connecting to TechZen Indian Hackathon Node...\n[OK] SYSTEM SECURED. ROUND 1 DETAILS LOADED:\n-> Tracks: Software Track & Hardware Track\n-> Team size: 1-4 members (Individual or Team)\n-> Location: National Level Online Hackathon\n\n💻 Software Track\nBuild web/app systems, AI bots, blockchain ledgers, or cloud security tools.\n\n⚙️ Hardware Track\nDevelop IoT, smart robots, embedded devices, or firmware controllers.\n\n🏆 Prizes & Goodies\nPrizes worth Cash + Goodies + Developer Vouchers for top performers.\n\n📜 E-Certificates\nOfficial certified credentials powered by TruScholar for all participants.\n\nTHE CODE IS READY. THE PLAN IS SET. ARE YOU IN?`
+        : `TECHZEN PRESENTS: QUIZVERSE 2026\nTHINK. ANSWER. CONQUER.\n\n⏱️ 30 Minutes Quiz Duration\n🧠 30 MCQs on Core CS & Hardware Prototyping\n💡 No Negative Marking\n👥 Open to All Students\n🏆 Exciting Prizes & E-Certificates`
+    };
+  }, [events, rawId]);
+
+  const maxAllowedMembers = displayEvent.maxTeamSize || 4;
+
+  const isQuizEvent = useMemo(() => {
+    return (displayEvent.category || '').toLowerCase().includes('quiz') || 
+           (displayEvent.title || '').toLowerCase().includes('quiz');
+  }, [displayEvent]);
+
+  // Sync selectedEventId in context when route mounts
+  useEffect(() => {
+    if (rawId) {
+      setSelectedEventId(rawId);
+    }
+  }, [rawId, setSelectedEventId]);
+
+  const [activeTab, setActiveTab] = useState<'event' | 'team' | 'project'>('event');
+  const [copiedLink, setCopiedLink] = useState(false);
+
+  // About Me State (Primary Lead / Participant)
+  const [userProfile, setUserProfile] = useState({
+    fullName: '',
+    email: '',
+    phone: '',
+    college: '',
+    role: 'Team Lead / Admin'
+  });
+
+  // Team Details State
+  const [teamName, setTeamName] = useState('');
+  const [participantCount, setParticipantCount] = useState(1);
+  const [teammates, setTeammates] = useState<Array<{ id: number; name: string; email: string; phone: string; college: string; role: string; customRole?: string }>>([
+    { id: 1, name: '', email: '', phone: '', college: '', role: 'Team Lead / Admin', customRole: '' }
+  ]);
+
+  // Project Submission State (All compulsory fields for Hackathons)
+  const [projectSubmission, setProjectSubmission] = useState({
+    track: 'Software Track',
+    title: '',
+    tagline: '',
+    repoUrl: '',
+    demoUrl: '',
+    pptUrl: '',
+    pptFileName: '',
+    techStack: '',
+    description: '',
+    submittedAt: ''
+  });
+
+  const [savedStatus, setSavedStatus] = useState('');
+  const [validationError, setValidationError] = useState('');
+
+  useEffect(() => {
+    if (currentUser || clerkUser) {
+      const name = currentUser?.name || [clerkUser?.firstName, clerkUser?.lastName].filter(Boolean).join(' ') || 'TechZen Builder';
+      const email = activeUserEmail;
+      setUserProfile((prev) => ({ ...prev, fullName: prev.fullName || name, email: prev.email || email }));
+      setTeammates((prev) => prev.map((t, idx) => (idx === 0 ? { ...t, name: t.name || name, email: t.email || email } : t)));
+    }
+
+    if (rawId) {
+      const savedKey = `techzen_event_submission_${rawId}_user`;
+      const saved = localStorage.getItem(savedKey);
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (parsed.teamName) setTeamName(parsed.teamName);
+          if (parsed.participantCount) setParticipantCount(parsed.participantCount);
+          if (parsed.teammates) setTeammates(parsed.teammates);
+          if (parsed.project) setProjectSubmission(parsed.project);
+          if (parsed.userProfile) setUserProfile(parsed.userProfile);
+        } catch (e) {
+          console.error(e);
+        }
+      }
+    }
+  }, [currentUser, clerkUser, activeUserEmail, rawId]);
+
+  const handleCopyLink = () => {
+    navigator.clipboard.writeText(window.location.href);
+    setCopiedLink(true);
+    setTimeout(() => setCopiedLink(false), 2500);
+  };
+
+  const handleDeleteCurrentEvent = () => {
+    if (window.confirm(`⚠️ ADMIN ACTION:\nAre you sure you want to delete "${displayEvent.title}"?\n\nThis will remove the event post from the site and database.`)) {
+      deleteEvent(displayEvent.id);
+      setLocation('/all-events');
+    }
+  };
+
+  // Dynamically sync number of teammate slots based on participant count selection
+  const handleParticipantCountChange = (count: number) => {
+    setParticipantCount(count);
+    setTeammates((prev) => {
+      if (count > prev.length) {
+        const added = [];
+        for (let i = prev.length; i < count; i++) {
+          added.push({
+            id: Date.now() + i,
+            name: '',
+            email: '',
+            phone: '',
+            college: '', // Compulsory college name per member
+            role: '', // Default role empty for teammates so "-- Select Role --" is prompt
+            customRole: ''
+          });
+        }
+        return [...prev, ...added];
+      } else {
+        return prev.slice(0, count);
+      }
+    });
+  };
+
+  const handleTabClick = (tab: 'event' | 'team' | 'project') => {
+    if (tab !== 'event' && !currentUser) {
+      setValidationError('🔒 Access Denied: You must be logged in to participate or fill out registration details. Please sign in first.');
+      if (showToast) showToast('🔒 Please sign in to register for this event!', 'error');
+      if (typeof openAuth === 'function') openAuth('login');
+      return;
+    }
+    setValidationError('');
+    setActiveTab(tab);
+  };
+
+  const handleSaveTeamDetails = () => {
+    if (!currentUser) {
+      setValidationError('🔒 Access Denied: You must be logged in to register or save team details. Please sign in first.');
+      if (showToast) showToast('🔒 Please sign in to register for this event!', 'error');
+      if (typeof openAuth === 'function') openAuth('login');
+      return;
+    }
+
+    if (!teamName.trim()) {
+      setValidationError('⚠️ Team Name is compulsory!');
+      return;
+    }
+    
+    // Check if any teammate name, email, or college name is missing
+    for (let i = 0; i < teammates.length; i++) {
+      const tm = teammates[i];
+      if (!tm.name.trim()) {
+        setValidationError(`⚠️ Full Name is compulsory for Member #${i + 1}!`);
+        return;
+      }
+      if (!tm.email.trim()) {
+        setValidationError(`⚠️ Email Address is compulsory for Member #${i + 1}!`);
+        return;
+      }
+      if (!tm.college || !tm.college.trim()) {
+        setValidationError(`⚠️ College / Institution Name is compulsory for Member #${i + 1}!`);
+        return;
+      }
+    }
+
+    // Check if any teammate role is unselected or "Others" custom role is empty
+    for (let i = 1; i < teammates.length; i++) {
+      const tm = teammates[i];
+      if (!tm.role || tm.role === '-- Select Role --') {
+        setValidationError(`⚠️ Please select a role for Member #${i + 1}!`);
+        return;
+      }
+      if (tm.role === 'Others (Type Custom Role)' && (!tm.customRole || !tm.customRole.trim())) {
+        setValidationError(`⚠️ Please type the custom role for Member #${i + 1}!`);
+        return;
+      }
+    }
+
+    setValidationError('');
+    
+    // Format teammates array with resolved role text
+    const processedTeammates = teammates.map((t, idx) => {
+      if (idx === 0) return { ...t, role: 'Team Lead / Admin' };
+      const finalRole = t.role === 'Others (Type Custom Role)' ? (t.customRole?.trim() || 'Team Member') : t.role;
+      return { ...t, role: finalRole };
+    });
+
+    const payload = {
+      teamName: teamName.trim(),
+      participantCount: processedTeammates.length,
+      teammates: processedTeammates,
+      userProfile,
+      project: projectSubmission
+    };
+
+    if (rawId) {
+      localStorage.setItem(`techzen_event_submission_${rawId}_user`, JSON.stringify(payload));
+    }
+    setSavedStatus('✅ Team & Leader details saved successfully!');
+    setTimeout(() => setSavedStatus(''), 3000);
+
+    if (!isQuizEvent) {
+      setActiveTab('project');
+    }
+  };
+
+  const handlePptFileUpload = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setProjectSubmission((prev) => ({
+        ...prev,
+        pptFileName: file.name,
+        pptUrl: prev.pptUrl || `[Attached File: ${file.name}]`
+      }));
+      setValidationError('');
+    }
+  };
+
+  const handleSaveSubmission = (e: FormEvent) => {
+    e.preventDefault();
+    setValidationError('');
+
+    if (!currentUser) {
+      setValidationError('🔒 Access Denied: You must be logged in to submit your project for this event. Please sign in first.');
+      if (showToast) showToast('🔒 Please sign in to submit your project!', 'error');
+      if (typeof openAuth === 'function') openAuth('login');
+      return;
+    }
+
+    // Strict validation: ALL fields are compulsory
+    if (!projectSubmission.title.trim()) {
+      setValidationError('⚠️ Project Title is compulsory!');
+      return;
+    }
+    if (!projectSubmission.pptUrl.trim() && !projectSubmission.pptFileName) {
+      setValidationError('⚠️ Presentation PPT / Pitch Deck submission is compulsory! Please enter a URL or upload a file.');
+      return;
+    }
+    if (!projectSubmission.repoUrl.trim()) {
+      setValidationError('⚠️ GitHub Repository URL is compulsory!');
+      return;
+    }
+    if (!projectSubmission.demoUrl.trim()) {
+      setValidationError('⚠️ Live Demo / Video Link is compulsory!');
+      return;
+    }
+    if (!projectSubmission.techStack.trim()) {
+      setValidationError('⚠️ Tech Stack Used is compulsory!');
+      return;
+    }
+    if (!projectSubmission.description.trim()) {
+      setValidationError('⚠️ Detailed Description & Features is compulsory!');
+      return;
+    }
+
+    const processedTeammates = teammates.map((t, idx) => {
+      if (idx === 0) return { ...t, role: 'Team Lead / Admin' };
+      const finalRole = t.role === 'Others (Type Custom Role)' ? (t.customRole?.trim() || 'Team Member') : t.role;
+      return { ...t, role: finalRole };
+    });
+
+    const payload = {
+      teamName: teamName || `${userProfile.fullName || 'Lead'}'s Squad`,
+      participantCount: processedTeammates.length,
+      teammates: processedTeammates,
+      userProfile,
+      project: {
+        ...projectSubmission,
+        submittedAt: new Date().toISOString()
+      }
+    };
+    if (rawId) {
+      localStorage.setItem(`techzen_event_submission_${rawId}_user`, JSON.stringify(payload));
+    }
+    setProjectSubmission((prev) => ({ ...prev, submittedAt: payload.project.submittedAt }));
+    setSavedStatus('🎉 All compulsory project & presentation details submitted successfully!');
+    if (showToast) showToast('🎉 All project & presentation details submitted!');
+    setTimeout(() => setSavedStatus(''), 4000);
+  };
+
+  return (
+    <SiteShell>
+      <main className="bg-[#0b0b0b] text-white min-h-screen">
+        
+        {/* Banner Section */}
+        <section className="relative overflow-hidden border-b border-white/10 bg-[#111116] py-16 px-5 sm:px-8 lg:px-12">
+          {displayEvent.coverImage && (
+            <img src={displayEvent.coverImage} alt="" className="absolute inset-0 w-full h-full object-cover opacity-40" />
+          )}
+          <div className="absolute inset-0 bg-gradient-to-t from-[#0b0b0b] via-[#0b0b0b]/80 to-transparent" />
+          
+          <div className="relative mx-auto max-w-[1440px]">
+            <div className="flex items-center justify-between gap-4 mb-6">
+              <Link href="/all-events" className="inline-flex items-center gap-2 font-mono text-xs text-white/50 hover:text-[#ef2635] transition-colors">
+                <ArrowLeft size={14} /> Back to all events
+              </Link>
+
+              {/* Verified Admin Delete Event Button */}
+              {effectiveIsAdmin && (
+                <button
+                  type="button"
+                  onClick={handleDeleteCurrentEvent}
+                  className="bg-rose-950/80 hover:bg-rose-900 border border-rose-700/60 text-rose-300 px-4 py-2 text-xs font-mono font-bold uppercase tracking-wider transition flex items-center gap-2 cursor-pointer shadow-lg"
+                >
+                  <Trash2 size={15} /> Delete Event Post
+                </button>
+              )}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 font-mono text-[10px] uppercase tracking-[.2em] mb-4">
+              <span className="bg-[#ef2635] px-2.5 py-1 text-white font-bold">{displayEvent.category}</span>
+              <span className="border border-white/20 px-2.5 py-1 text-white/55">{displayEvent.format || 'ONLINE'}</span>
+              <span className="border border-[#ef2635]/50 text-[#ef2635] px-2.5 py-1 font-bold">
+                TEAM SIZE: UP TO {maxAllowedMembers} MEMBERS
+              </span>
+            </div>
+
+            <h1 className="text-4xl sm:text-6xl font-bold tracking-tight text-white">{displayEvent.title}</h1>
+            <p className="mt-4 text-base text-white/60 max-w-2xl">{displayEvent.tagline || displayEvent.description}</p>
+          </div>
+        </section>
+
+        {/* Tab Navigation Bar */}
+        <div className="border-b border-white/10 bg-[#0c0c0e]">
+          <div className="mx-auto max-w-[1440px] px-5 sm:px-8 lg:px-12 flex space-x-2 font-mono text-xs">
+            <button
+              onClick={() => handleTabClick('event')}
+              className={`py-4 px-5 font-bold transition border-b-2 flex items-center space-x-2 cursor-pointer ${
+                activeTab === 'event' ? 'border-[#ef2635] text-white bg-white/[0.03]' : 'border-transparent text-white/45 hover:text-white'
+              }`}
+            >
+              <CalendarDays size={16} className="text-[#ef2635]" />
+              <span>Event Info & Details</span>
+            </button>
+
+            <button
+              onClick={() => handleTabClick('team')}
+              className={`py-4 px-5 font-bold transition border-b-2 flex items-center space-x-2 cursor-pointer ${
+                activeTab === 'team' ? 'border-[#ef2635] text-white bg-white/[0.03]' : 'border-transparent text-white/45 hover:text-white'
+              }`}
+            >
+              <Users size={16} className="text-[#ef2635]" />
+              <span>Team & Members Details</span>
+            </button>
+
+            {/* Project Submission tab is ONLY for Hackathons, NOT for Quiz events */}
+            {!isQuizEvent && (
+              <button
+                onClick={() => handleTabClick('project')}
+                className={`py-4 px-5 font-bold transition border-b-2 flex items-center space-x-2 cursor-pointer ${
+                  activeTab === 'project' ? 'border-[#ef2635] text-white bg-white/[0.03]' : 'border-transparent text-white/45 hover:text-white'
+                }`}
+              >
+                <Code size={16} className="text-[#ef2635]" />
+                <span>Project & PPT Submission</span>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Main Content Area */}
+        <section className="mx-auto max-w-[1440px] px-5 py-12 sm:px-8 lg:px-12">
+          
+          {/* TAB 1: EVENT INFO */}
+          {activeTab === 'event' && (
+            <div className="grid gap-10 md:grid-cols-[1fr_380px]">
+              <div>
+                <div className="space-y-6">
+                  <div className="flex flex-wrap gap-4 text-xs font-mono text-white/60 p-4 border border-white/10 bg-[#121215] rounded-lg">
+                    <div className="flex items-center gap-2"><CalendarDays size={16} className="text-[#ef2635]" /> {displayEvent.date}</div>
+                    <div className="flex items-center gap-2"><MapPin size={16} className="text-[#ef2635]" /> {displayEvent.location}</div>
+                    <div className="flex items-center gap-2 text-[#ef2635] font-bold">
+                      <Users size={16} /> Team Limit: 1 - {maxAllowedMembers} Members
+                    </div>
+                  </div>
+
+                  <div className="prose prose-invert max-w-none">
+                    <h3 className="text-xl font-semibold text-white">About this Event</h3>
+                    <p className="whitespace-pre-line text-sm text-white/70 leading-relaxed">{displayEvent.description}</p>
+                  </div>
+                </div>
+              </div>
+
+              <aside>
+                <div className="border border-white/15 bg-[#111] p-6 rounded-lg space-y-4">
+                  <h3 className="font-mono text-xs uppercase tracking-widest text-[#ef2635]">Event Registration</h3>
+                  <p className="text-xs text-white/50">
+                    {isQuizEvent 
+                      ? 'Quiz Registration: Fill out your team name and member details below.' 
+                      : 'Hackathon Registration: Register your team members, roles, and submit project details.'}
+                  </p>
+                  
+                  <button
+                    onClick={() => handleTabClick('team')}
+                    className="w-full bg-[#ef2635] hover:bg-[#ff3d4b] text-white font-bold py-3 text-xs uppercase tracking-wider transition flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <span>Fill Team Details</span>
+                    <ArrowUpRight size={16} />
+                  </button>
+
+                  <button
+                    onClick={handleCopyLink}
+                    className="w-full border border-white/20 bg-white/5 hover:bg-white/10 text-white font-mono text-xs py-2.5 transition flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    {copiedLink ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
+                    <span>{copiedLink ? 'URL Copied!' : 'Share Event Link'}</span>
+                  </button>
+
+                  {effectiveIsAdmin && (
+                    <button
+                      onClick={handleDeleteCurrentEvent}
+                      className="w-full border border-rose-700/60 bg-rose-950/60 hover:bg-rose-900 text-rose-300 font-mono text-xs py-2.5 transition flex items-center justify-center gap-2 cursor-pointer font-bold"
+                    >
+                      <Trash2 size={14} />
+                      <span>Delete Event Post</span>
+                    </button>
+                  )}
+                </div>
+              </aside>
+            </div>
+          )}
+
+          {/* TAB 2: TEAM & MEMBERS DETAILS */}
+          {activeTab === 'team' && (
+            !currentUser ? (
+              <div className="max-w-3xl mx-auto border border-[#ef2635]/40 bg-[#161214] p-8 sm:p-12 rounded-xl text-center space-y-6">
+                <div className="w-16 h-16 rounded-full bg-[#ef2635]/15 border border-[#ef2635]/40 flex items-center justify-center mx-auto text-[#ef2635]">
+                  <ShieldCheck size={32} />
+                </div>
+                <div className="space-y-2">
+                  <h2 className="text-2xl font-bold font-mono text-white">Authentication Required</h2>
+                  <p className="text-sm text-white/60 max-w-md mx-auto">
+                    You must be signed in to register your team, fill member details, or participate in <strong className="text-white">{displayEvent.title}</strong>.
+                  </p>
+                </div>
+                <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-4">
+                  <button
+                    onClick={() => typeof openAuth === 'function' && openAuth('login')}
+                    className="bg-[#ef2635] hover:bg-[#ff3d4b] text-white font-bold px-8 py-3.5 text-xs font-mono uppercase tracking-wider transition shadow-[0_0_20px_rgba(239,38,53,0.35)] cursor-pointer"
+                  >
+                    Sign In / Create Account
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('event')}
+                    className="border border-white/20 hover:border-white text-white/70 hover:text-white font-mono text-xs px-6 py-3.5 transition cursor-pointer"
+                  >
+                    Back to Event Info
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="max-w-5xl space-y-8">
+              
+              {/* Step 1: Team Name & Participant Count Selector */}
+              <div className="border border-[#ef2635]/40 bg-[#161214] p-6 sm:p-8 rounded-xl space-y-5">
+                <div className="flex items-center justify-between border-b border-white/10 pb-4">
+                  <div className="flex items-center gap-3">
+                    <Users size={20} className="text-[#ef2635]" />
+                    <h2 className="text-lg font-bold font-mono uppercase text-white">1. Team Name & Participant Count</h2>
+                  </div>
+                  <span className="font-mono text-xs text-[#ef2635] font-bold">
+                    Allowed: 1 to {maxAllowedMembers} Members
+                  </span>
+                </div>
+
+                <div className="grid gap-5 sm:grid-cols-2 text-xs">
+                  <div>
+                    <label className="block text-white/70 mb-1 font-semibold">Team Name *</label>
+                    <input
+                      type="text"
+                      required
+                      value={teamName}
+                      onChange={(e) => {
+                        setTeamName(e.target.value);
+                        setValidationError('');
+                      }}
+                      placeholder="e.g. Cipher Cyber Squad"
+                      className="w-full bg-black/70 border border-[#ef2635]/50 px-3.5 py-2.5 text-white font-mono outline-none focus:border-[#ef2635]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-white/70 mb-1 font-semibold">How many members in your team? *</label>
+                    <select
+                      value={teammates.length}
+                      onChange={(e) => handleParticipantCountChange(parseInt(e.target.value))}
+                      className="w-full bg-black/70 border border-[#ef2635]/50 px-3.5 py-2.5 text-white font-mono font-bold outline-none focus:border-[#ef2635]"
+                    >
+                      {Array.from({ length: maxAllowedMembers }, (_, i) => i + 1).map((num) => (
+                        <option key={num} value={num}>
+                          {num} {num === 1 ? 'Participant (Solo)' : `Participants (${num} Members)`}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Step 2: Member Slots Dynamic Form */}
+              <div className="border border-white/10 bg-[#111116] p-6 sm:p-8 rounded-xl space-y-6">
+                <div className="flex items-center justify-between border-b border-white/10 pb-4">
+                  <div className="flex items-center gap-3">
+                    <ShieldCheck size={20} className="text-[#ef2635]" />
+                    <h2 className="text-lg font-bold font-mono uppercase text-white">
+                      2. Member Details, Colleges & Roles ({teammates.length} Selected)
+                    </h2>
+                  </div>
+                  <span className="font-mono text-xs text-white/40">{teammates.length} / {maxAllowedMembers} Slots</span>
+                </div>
+
+                <div className="space-y-6">
+                  {teammates.map((member, index) => {
+                    const isLead = index === 0;
+
+                    return (
+                      <div
+                        key={member.id}
+                        className={`p-5 rounded-xl border space-y-4 ${
+                          isLead ? 'bg-[#1a1214] border-[#ef2635]/50' : 'bg-black/40 border-white/10'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                          <div className="flex items-center gap-2 font-mono text-xs">
+                            <span className={`px-2.5 py-1 rounded font-bold uppercase ${
+                              isLead ? 'bg-[#ef2635] text-white' : 'bg-white/10 text-white/70'
+                            }`}>
+                              {isLead ? '⭐ MEMBER #1 — TEAM LEADER / ADMIN' : `MEMBER #${index + 1}`}
+                            </span>
+                          </div>
+                          <span className="font-mono text-[11px] text-white/40">
+                            {isLead ? 'Primary Event Contact' : 'Teammate'}
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 font-mono text-xs">
+                          <div>
+                            <label className="block text-white/70 mb-1 font-semibold">Full Name *</label>
+                            <input
+                              type="text"
+                              required
+                              value={member.name}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setTeammates((prev) => prev.map((t) => (t.id === member.id ? { ...t, name: val } : t)));
+                                if (isLead) setUserProfile((p) => ({ ...p, fullName: val }));
+                                setValidationError('');
+                              }}
+                              placeholder={isLead ? 'Team Admin Name' : 'Member Full Name'}
+                              className="w-full bg-[#111] border border-white/15 px-3 py-2 text-white outline-none focus:border-[#ef2635]"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-white/70 mb-1 font-semibold">Email Address *</label>
+                            <input
+                              type="email"
+                              required
+                              value={member.email}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setTeammates((prev) => prev.map((t) => (t.id === member.id ? { ...t, email: val } : t)));
+                                if (isLead) setUserProfile((p) => ({ ...p, email: val }));
+                                setValidationError('');
+                              }}
+                              placeholder={isLead ? 'admin@gmail.com' : 'member@gmail.com'}
+                              className="w-full bg-[#111] border border-white/15 px-3 py-2 text-white outline-none focus:border-[#ef2635]"
+                            />
+                          </div>
+
+                          {/* College Name compulsory per member */}
+                          <div>
+                            <label className="block text-white/70 mb-1 font-semibold flex items-center gap-1">
+                              <GraduationCap size={13} className="text-[#ef2635]" />
+                              <span>College Name *</span>
+                            </label>
+                            <input
+                              type="text"
+                              required
+                              value={member.college || ''}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setTeammates((prev) => prev.map((t) => (t.id === member.id ? { ...t, college: val } : t)));
+                                if (isLead) setUserProfile((p) => ({ ...p, college: val }));
+                                setValidationError('');
+                              }}
+                              placeholder="College Name"
+                              className="w-full bg-[#111] border border-white/15 px-3 py-2 text-white outline-none focus:border-[#ef2635]"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-white/70 mb-1 font-semibold">Role in Team *</label>
+                            {isLead ? (
+                              <input
+                                type="text"
+                                readOnly
+                                value="Team Lead / Admin"
+                                className="w-full bg-[#18181f] border border-[#ef2635]/50 px-3 py-2 text-[#ef2635] font-bold cursor-not-allowed"
+                              />
+                            ) : (
+                              <div className="space-y-2">
+                                <select
+                                  value={member.role || ''}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    setTeammates((prev) => prev.map((t) => (t.id === member.id ? { ...t, role: val } : t)));
+                                    setValidationError('');
+                                  }}
+                                  className="w-full bg-[#111] border border-white/15 px-3 py-2 text-white outline-none focus:border-[#ef2635]"
+                                >
+                                  {TEAMMATE_ROLE_OPTIONS.map((r) => (
+                                    <option key={r} value={r === '-- Select Role --' ? '' : r}>{r}</option>
+                                  ))}
+                                </select>
+
+                                {/* Custom Role text box if "Others (Type Custom Role)" selected */}
+                                {member.role === 'Others (Type Custom Role)' && (
+                                  <input
+                                    type="text"
+                                    required
+                                    value={member.customRole || ''}
+                                    onChange={(e) => {
+                                      const customVal = e.target.value;
+                                      setTeammates((prev) => prev.map((t) => (t.id === member.id ? { ...t, customRole: customVal } : t)));
+                                      setValidationError('');
+                                    }}
+                                    placeholder="Type your role (e.g. Data Scientist, DevOps)"
+                                    className="w-full bg-black/80 border border-[#ef2635]/60 px-3 py-1.5 text-white text-xs outline-none focus:border-[#ef2635]"
+                                  />
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Validation & Save Action Bar */}
+              <div className="space-y-3 pt-2">
+                {validationError && (
+                  <div className="p-3 bg-rose-950/80 border border-rose-700/80 rounded text-rose-300 font-mono text-xs font-bold">
+                    {validationError}
+                  </div>
+                )}
+
+                <div className="flex items-center justify-between">
+                  <div className="font-mono text-xs text-emerald-400 font-bold">
+                    {savedStatus}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleSaveTeamDetails}
+                    className="bg-[#ef2635] hover:bg-[#ff3d4b] text-white font-bold py-3 px-8 text-xs uppercase tracking-wider transition flex items-center gap-2 cursor-pointer shadow-lg shadow-red-600/20"
+                  >
+                    <Users size={16} />
+                    <span>{isQuizEvent ? 'Save Team Details' : 'Proceed to Project & PPT Submission'}</span>
+                  </button>
+                </div>
+              </div>
+
+            </div>
+          )
+        )}
+
+          {/* TAB 3: PROJECT & PPT SUBMISSION (All fields compulsory for Hackathons) */}
+          {!isQuizEvent && activeTab === 'project' && (
+            !currentUser ? (
+              <div className="max-w-3xl mx-auto border border-[#ef2635]/40 bg-[#161214] p-8 sm:p-12 rounded-xl text-center space-y-6">
+                <div className="w-16 h-16 rounded-full bg-[#ef2635]/15 border border-[#ef2635]/40 flex items-center justify-center mx-auto text-[#ef2635]">
+                  <Code size={32} />
+                </div>
+                <div className="space-y-2">
+                  <h2 className="text-2xl font-bold font-mono text-white">Authentication Required</h2>
+                  <p className="text-sm text-white/60 max-w-md mx-auto">
+                    You must be signed in to submit your project, GitHub repo, live demo, or presentation PPT for <strong className="text-white">{displayEvent.title}</strong>.
+                  </p>
+                </div>
+                <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-4">
+                  <button
+                    onClick={() => typeof openAuth === 'function' && openAuth('login')}
+                    className="bg-[#ef2635] hover:bg-[#ff3d4b] text-white font-bold px-8 py-3.5 text-xs font-mono uppercase tracking-wider transition shadow-[0_0_20px_rgba(239,38,53,0.35)] cursor-pointer"
+                  >
+                    Sign In / Create Account
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('event')}
+                    className="border border-white/20 hover:border-white text-white/70 hover:text-white font-mono text-xs px-6 py-3.5 transition cursor-pointer"
+                  >
+                    Back to Event Info
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <form onSubmit={handleSaveSubmission} className="max-w-4xl space-y-8">
+              <div className="border border-white/10 bg-[#111116] p-6 sm:p-8 rounded-xl space-y-6">
+                <div className="flex items-center gap-3 border-b border-white/10 pb-4 justify-between">
+                  <div className="flex items-center gap-3">
+                    <Code size={18} className="text-[#ef2635]" />
+                    <h2 className="text-lg font-bold font-mono uppercase text-white">3. Hackathon Project & PPT Submission</h2>
+                  </div>
+                  {projectSubmission.submittedAt ? (
+                    <span className="font-mono text-xs text-emerald-400 bg-emerald-950 border border-emerald-800 px-3 py-1 font-bold">
+                      STATUS: SUBMITTED
+                    </span>
+                  ) : (
+                    <span className="font-mono text-xs text-amber-400 bg-amber-950 border border-amber-800 px-3 py-1 font-bold">
+                      STATUS: PENDING DRAFT
+                    </span>
+                  )}
+                </div>
+
+                <div className="p-3 bg-amber-950/40 border border-amber-800/40 rounded text-amber-300 font-mono text-xs">
+                  📌 <strong>Note:</strong> All submission fields marked with <span className="text-[#ef2635] font-bold">*</span> are <strong>compulsory</strong> for jury evaluation.
+                </div>
+
+                <div className="space-y-5 text-xs">
+                  <div>
+                    <label className="block text-white mb-1 font-semibold">Select Hackathon Track <span className="text-[#ef2635] font-bold">*</span></label>
+                    <select
+                      required
+                      value={projectSubmission.track}
+                      onChange={(e) => setProjectSubmission((prev) => ({ ...prev, track: e.target.value }))}
+                      className="w-full bg-black/60 border border-white/15 px-3.5 py-2.5 text-white font-mono outline-none focus:border-[#ef2635]"
+                    >
+                      <option value="Software Track">💻 Software Track (AI, Web/Mobile, Cloud, Blockchain)</option>
+                      <option value="Hardware Track">⚙️ Hardware Track (IoT, Smart Robots, Embedded Systems)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-white mb-1 font-semibold">Project Title <span className="text-[#ef2635] font-bold">*</span></label>
+                    <input
+                      type="text"
+                      required
+                      value={projectSubmission.title}
+                      onChange={(e) => {
+                        setProjectSubmission((prev) => ({ ...prev, title: e.target.value }));
+                        setValidationError('');
+                      }}
+                      placeholder="e.g. CipherGuard Fraud Detection System"
+                      className="w-full bg-black/60 border border-white/15 px-3.5 py-2.5 text-white font-mono outline-none focus:border-[#ef2635]"
+                    />
+                  </div>
+
+                  {/* PPT Presentation Upload Box */}
+                  <div className="p-4 border border-[#ef2635]/40 bg-[#161214] rounded-lg space-y-3">
+                    <div className="flex items-center gap-2 text-sm font-mono font-bold text-[#ef2635]">
+                      <FileText size={18} />
+                      <span>PRESENTATION PPT / PITCH DECK SUBMISSION <span className="text-[#ef2635] font-bold">*</span></span>
+                    </div>
+
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div>
+                        <label className="block text-white/80 mb-1 font-semibold">PPT / Pitch Deck Link (Google Slides, Canva, Drive Link) <span className="text-[#ef2635] font-bold">*</span></label>
+                        <input
+                          type="url"
+                          value={projectSubmission.pptUrl}
+                          onChange={(e) => {
+                            setProjectSubmission((prev) => ({ ...prev, pptUrl: e.target.value }));
+                            setValidationError('');
+                          }}
+                          placeholder="https://docs.google.com/presentation/d/..."
+                          className="w-full bg-black/60 border border-white/15 px-3.5 py-2.5 text-white font-mono outline-none focus:border-[#ef2635]"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-white/80 mb-1 font-semibold">Or Upload PPT File (.ppt, .pptx, .pdf) <span className="text-[#ef2635] font-bold">*</span></label>
+                        <div className="relative flex items-center justify-center border border-dashed border-white/25 hover:border-[#ef2635] bg-black/40 p-2.5 text-center cursor-pointer transition">
+                          <input
+                            type="file"
+                            accept=".ppt,.pptx,.pdf"
+                            onChange={handlePptFileUpload}
+                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                          />
+                          <div className="flex items-center gap-2 font-mono text-xs text-white/70">
+                            <Upload size={15} className="text-[#ef2635]" />
+                            <span>{projectSubmission.pptFileName || 'Choose PPT File (.ppt / .pdf)'}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div>
+                      <label className="block text-white mb-1 font-semibold">GitHub Repository URL <span className="text-[#ef2635] font-bold">*</span></label>
+                      <input
+                        type="url"
+                        required
+                        value={projectSubmission.repoUrl}
+                        onChange={(e) => {
+                          setProjectSubmission((prev) => ({ ...prev, repoUrl: e.target.value }));
+                          setValidationError('');
+                        }}
+                        placeholder="https://github.com/user/project"
+                        className="w-full bg-black/60 border border-white/15 px-3.5 py-2.5 text-white font-mono outline-none focus:border-[#ef2635]"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-white mb-1 font-semibold">Live Demo / Video Link <span className="text-[#ef2635] font-bold">*</span></label>
+                      <input
+                        type="url"
+                        required
+                        value={projectSubmission.demoUrl}
+                        onChange={(e) => {
+                          setProjectSubmission((prev) => ({ ...prev, demoUrl: e.target.value }));
+                          setValidationError('');
+                        }}
+                        placeholder="https://my-demo.vercel.app or YouTube"
+                        className="w-full bg-black/60 border border-white/15 px-3.5 py-2.5 text-white font-mono outline-none focus:border-[#ef2635]"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-white mb-1 font-semibold">Tech Stack Used <span className="text-[#ef2635] font-bold">*</span></label>
+                    <input
+                      type="text"
+                      required
+                      value={projectSubmission.techStack}
+                      onChange={(e) => {
+                        setProjectSubmission((prev) => ({ ...prev, techStack: e.target.value }));
+                        setValidationError('');
+                      }}
+                      placeholder="e.g. React 19, Python, OpenCV, Raspberry Pi"
+                      className="w-full bg-black/60 border border-white/15 px-3.5 py-2.5 text-white font-mono outline-none focus:border-[#ef2635]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-white mb-1 font-semibold">Detailed Description & Features <span className="text-[#ef2635] font-bold">*</span></label>
+                    <textarea
+                      rows={4}
+                      required
+                      value={projectSubmission.description}
+                      onChange={(e) => {
+                        setProjectSubmission((prev) => ({ ...prev, description: e.target.value }));
+                        setValidationError('');
+                      }}
+                      placeholder="Describe what you built, architecture, challenges, and feature highlights..."
+                      className="w-full bg-black/60 border border-white/15 px-3.5 py-2.5 text-white font-mono outline-none focus:border-[#ef2635] resize-none"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Validation Banner & Action Buttons */}
+              <div className="space-y-4">
+                {validationError && (
+                  <div className="p-3.5 bg-rose-950/80 border border-rose-700/80 rounded-lg text-rose-300 font-mono text-xs font-bold">
+                    {validationError}
+                  </div>
+                )}
+
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div className="font-mono text-xs text-white/50">
+                    {savedStatus ? <span className="text-emerald-400 font-bold">{savedStatus}</span> : <span>All marked fields are compulsory before final submission.</span>}
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="w-full sm:w-auto bg-[#ef2635] hover:bg-[#ff3d4b] text-white font-bold py-3.5 px-8 text-xs uppercase tracking-wider transition flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-red-600/20"
+                  >
+                    <Send size={16} />
+                    <span>Submit Project & PPT Presentation</span>
+                  </button>
+                </div>
+              </div>
+            </form>
+          )
+        )}
+
+        </section>
+
+      </main>
+    </SiteShell>
+  );
+}
