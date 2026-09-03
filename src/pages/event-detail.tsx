@@ -329,12 +329,69 @@ export default function EventDetail() {
     }
   };
 
-  const handleCopyInviteLink = () => {
-    const inviteUrl = `${window.location.origin}/events/${rawId}?teamInvite=${teamInviteCode}`;
-    navigator.clipboard.writeText(inviteUrl);
-    setCopiedInviteLink(true);
-    if (showToast) showToast('🔗 Unique Team Invite Link copied to clipboard!');
-    setTimeout(() => setCopiedInviteLink(false), 3000);
+  const [joinCodeInput, setJoinCodeInput] = useState('');
+  const [copiedCode, setCopiedCode] = useState(false);
+
+  const handleCopyTeamCode = () => {
+    if (!teamInviteCode) return;
+    navigator.clipboard.writeText(teamInviteCode);
+    setCopiedCode(true);
+    if (showToast) showToast(`📋 Unique Team Code "${teamInviteCode}" copied to clipboard!`);
+    setTimeout(() => setCopiedCode(false), 3000);
+  };
+
+  const handleJoinByCodeSubmit = async () => {
+    const code = joinCodeInput.trim().toUpperCase();
+    if (!code) {
+      setValidationError('⚠️ Please enter a unique Team Code!');
+      return;
+    }
+
+    if (!currentUser) {
+      if (showToast) showToast('🔒 Please sign in to join this team!', 'error');
+      if (typeof openAuth === 'function') openAuth('login');
+      return;
+    }
+
+    const userEmail = activeUserEmail || currentUser.email;
+    const userName = currentUser.name || 'Team Member';
+
+    try {
+      const res = await fetch('/api/teams/join', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          inviteCode: code,
+          userEmail,
+          userName
+        })
+      });
+
+      if (res.ok) {
+        const updatedTeam = await res.json();
+        setTeammates(updatedTeam.teammates);
+        setParticipantCount(updatedTeam.participantCount);
+        if (updatedTeam.teamName) setTeamName(updatedTeam.teamName);
+        setTeamInviteCode(code);
+
+        if (rawId) {
+          localStorage.setItem(`techzen_team_invite_${rawId}_${code}`, JSON.stringify(updatedTeam));
+          localStorage.setItem(`techzen_event_submission_${rawId}_user`, JSON.stringify(updatedTeam));
+        }
+
+        if (showToast) showToast(`🎉 Success! You joined Team "${updatedTeam.teamName}"!`);
+        setValidationError('');
+        setJoinCodeInput('');
+        setIncomingInvite(null);
+        return;
+      } else {
+        const errData = await res.json();
+        setValidationError(`❌ ${errData.error || 'Team Code not found'}`);
+      }
+    } catch (e) {
+      console.error(e);
+      setValidationError('❌ Failed to connect to server');
+    }
   };
 
   const handleJoinTeamAsMember = async () => {
@@ -656,6 +713,42 @@ export default function EventDetail() {
             ) : (
               <div className="max-w-5xl space-y-8">
 
+              {/* Option A: Join Existing Team via Unique Code */}
+              <div className="border border-sky-500/40 bg-gradient-to-r from-sky-950/40 via-black/80 to-black/60 p-6 rounded-xl space-y-4">
+                <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                  <div className="flex items-center gap-2 text-sky-400 font-mono text-xs font-bold uppercase tracking-wider">
+                    <Users size={16} />
+                    <span>Join Existing Team via Unique Code</span>
+                  </div>
+                  <span className="text-[10px] font-mono text-sky-400 bg-sky-950/70 border border-sky-800/60 px-2.5 py-1 font-bold uppercase">
+                    Teammate Join Option
+                  </span>
+                </div>
+                <p className="text-xs text-white/70 font-sans">
+                  Have a Team Leader's unique code? Enter it below to join their team instantly!
+                </p>
+                <div className="flex flex-col sm:flex-row items-center gap-3">
+                  <input
+                    type="text"
+                    value={joinCodeInput}
+                    onChange={(e) => {
+                      setJoinCodeInput(e.target.value.toUpperCase());
+                      setValidationError('');
+                    }}
+                    placeholder="ENTER TEAM CODE (e.g. TEAM-OPERAT-TANISH)"
+                    className="w-full bg-black/90 border border-sky-500/40 px-4 py-3 text-xs font-mono text-white placeholder-white/40 uppercase tracking-widest outline-none focus:border-sky-400"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleJoinByCodeSubmit}
+                    className="w-full sm:w-auto bg-sky-600 hover:bg-sky-500 text-white font-mono text-xs font-bold px-7 py-3 uppercase tracking-wider transition cursor-pointer flex items-center justify-center gap-2 shrink-0 shadow-[0_0_15px_rgba(14,165,233,0.3)]"
+                  >
+                    <span>Join Team</span>
+                    <ArrowUpRight size={15} />
+                  </button>
+                </div>
+              </div>
+
               {/* Teammate Invitation Card (When opening a leader's shareable link) */}
               {incomingInvite && (
                 <div className="border border-emerald-500/50 bg-emerald-950/30 p-6 rounded-xl space-y-3 animate-fadeIn">
@@ -684,36 +777,53 @@ export default function EventDetail() {
                 </div>
               )}
 
-              {/* Unique Shareable Team Invite Link Box for Leader */}
+              {/* Option B: Unique Leader Team Code & Shareable Link Box */}
               {teamInviteCode && (
-                <div className="border border-[#ef2635]/40 bg-gradient-to-r from-[#ef2635]/15 via-black/80 to-black/60 p-6 rounded-xl space-y-3">
-                  <div className="flex items-center justify-between">
+                <div className="border border-[#ef2635]/40 bg-gradient-to-r from-[#ef2635]/15 via-black/80 to-black/60 p-6 rounded-xl space-y-4">
+                  <div className="flex items-center justify-between border-b border-white/10 pb-3">
                     <div className="flex items-center gap-2 text-[#ef2635] font-mono text-xs font-bold uppercase tracking-wider">
-                      <LinkIcon size={16} />
-                      <span>Unique Leader Invite Link for Teammates</span>
+                      <ShieldCheck size={16} />
+                      <span>Team Leader Unique Code & Invite Link</span>
                     </div>
-                    <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950/70 border border-emerald-800/60 px-2 py-0.5 font-bold">
-                      SHAREABLE LINK
+                    <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950/70 border border-emerald-800/60 px-2.5 py-1 font-bold uppercase">
+                      Leader Code
                     </span>
                   </div>
-                  <p className="text-xs text-white/70 font-sans">
-                    Share this unique link with your teammates so they can join <strong className="text-white">{teamName || 'your team'}</strong> directly by signing in!
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      readOnly
-                      value={`${window.location.origin}/events/${rawId}?teamInvite=${teamInviteCode}`}
-                      className="w-full bg-black/90 border border-white/20 px-3.5 py-2.5 text-xs font-mono text-white/90 select-all outline-none"
-                    />
+
+                  {/* Big Unique Code Banner */}
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-black/90 border border-[#ef2635]/50 p-4 rounded-lg">
+                    <div>
+                      <span className="text-[10px] text-white/50 uppercase font-mono tracking-wider block">Your Unique Team Code:</span>
+                      <span className="text-xl font-extrabold text-[#ff4c59] font-mono tracking-widest">{teamInviteCode}</span>
+                    </div>
                     <button
                       type="button"
-                      onClick={handleCopyInviteLink}
-                      className="bg-[#ef2635] hover:bg-[#ff3d4b] text-white font-mono text-xs font-bold px-5 py-2.5 uppercase tracking-wider shrink-0 transition cursor-pointer flex items-center gap-1.5 shadow-[0_0_15px_rgba(239,38,53,0.3)]"
+                      onClick={handleCopyTeamCode}
+                      className="bg-[#ef2635] hover:bg-[#ff3d4b] text-white font-mono text-xs font-bold px-5 py-2.5 uppercase tracking-wider transition cursor-pointer flex items-center gap-1.5 shadow-[0_0_15px_rgba(239,38,53,0.3)] shrink-0"
                     >
-                      {copiedInviteLink ? <Check size={14} /> : <Copy size={14} />}
-                      <span>{copiedInviteLink ? 'Copied!' : 'Copy Link'}</span>
+                      {copiedCode ? <Check size={14} /> : <Copy size={14} />}
+                      <span>{copiedCode ? 'Code Copied!' : 'Copy Team Code'}</span>
                     </button>
+                  </div>
+
+                  <div className="space-y-1 pt-1">
+                    <span className="text-[11px] text-white/60 font-sans block">Or share direct URL link with teammates:</span>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        readOnly
+                        value={`${window.location.origin}/events/${rawId}?teamInvite=${teamInviteCode}`}
+                        className="w-full bg-black/80 border border-white/15 px-3.5 py-2 text-xs font-mono text-white/80 select-all outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleCopyInviteLink}
+                        className="border border-white/20 hover:border-white text-white font-mono text-xs font-bold px-4 py-2 uppercase tracking-wider shrink-0 transition cursor-pointer flex items-center gap-1.5"
+                      >
+                        {copiedInviteLink ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
+                        <span>{copiedInviteLink ? 'Link Copied!' : 'Copy Link'}</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}
