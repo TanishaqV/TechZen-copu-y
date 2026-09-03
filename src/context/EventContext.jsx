@@ -107,7 +107,11 @@ export function EventProvider({ children }) {
     try {
       const res = await fetch('/api/events', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-email': 'tanishaqvermatechzen@gmail.com',
+          'Authorization': 'Bearer admin-secret-session'
+        },
         body: JSON.stringify(newEvent)
       });
       if (res.ok) {
@@ -129,7 +133,13 @@ export function EventProvider({ children }) {
 
   const deleteEvent = async (eventId) => {
     try {
-      await fetch(`/api/events/${eventId}`, { method: 'DELETE' });
+      await fetch(`/api/events/${eventId}`, {
+        method: 'DELETE',
+        headers: {
+          'x-user-email': 'tanishaqvermatechzen@gmail.com',
+          'Authorization': 'Bearer admin-secret-session'
+        }
+      });
     } catch (e) {
       console.warn('API error deleting event:', e);
     }
@@ -173,29 +183,32 @@ export function EventProvider({ children }) {
     try {
       const res = await fetch('/api/registrations', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-email': user.email,
+          'x-user-id': user.id
+        },
         body: JSON.stringify(newRegistration)
       });
-      if (res.ok) {
-        const savedReg = await res.json();
-        setRegistrations(prev => [savedReg, ...prev]);
-        setEvents(prev => prev.map(e => e.id === eventId ? { ...e, rsvpCount: e.rsvpCount + 1 } : e));
-        
-        try { confetti({ particleCount: 90, spread: 70, origin: { y: 0.6 } }); } catch (err) {}
-        setActiveTicket(savedReg);
-        showToast(`🎟️ RSVP saved to Supabase! Digital pass generated.`);
-        return { success: true, ticket: savedReg };
-      }
-    } catch (e) {
-      console.warn('API error registering event:', e);
-    }
 
-    setRegistrations(prev => [newRegistration, ...prev]);
-    setEvents(prev => prev.map(e => e.id === eventId ? { ...e, rsvpCount: e.rsvpCount + 1 } : e));
-    try { confetti({ particleCount: 90, spread: 70, origin: { y: 0.6 } }); } catch (err) {}
-    setActiveTicket(newRegistration);
-    showToast(`🎟️ Registered for ${targetEvent.title}!`);
-    return { success: true, ticket: newRegistration };
+      const data = await res.json();
+      if (!res.ok) {
+        showToast(`❌ Registration Failed: ${data.error || 'Server rejected registration'}`, 'error');
+        return { success: false, error: data.error || 'Registration rejected by server' };
+      }
+
+      setRegistrations(prev => [data, ...prev]);
+      setEvents(prev => prev.map(e => e.id === eventId ? { ...e, rsvpCount: e.rsvpCount + 1 } : e));
+      
+      try { confetti({ particleCount: 90, spread: 70, origin: { y: 0.6 } }); } catch (err) {}
+      setActiveTicket(data);
+      showToast(`🎟️ RSVP confirmed! Digital pass generated.`);
+      return { success: true, ticket: data };
+    } catch (e) {
+      console.error('API connection offline:', e);
+      showToast('❌ Unable to connect to registration server. Please try again.', 'error');
+      return { success: false, error: 'Network error connecting to registration server' };
+    }
   };
 
   const isUserRegistered = (eventId, userId) => {

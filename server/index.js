@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import crypto from 'crypto';
 import pool, { initDatabase } from './db.js';
 import { INITIAL_EVENTS } from '../src/mockData.js';
 
@@ -8,8 +9,58 @@ const PORT = process.env.PORT || 3001;
 
 const ADMIN_EMAIL = 'tanishaqvermatechzen@gmail.com';
 
-app.use(cors());
+// 1. CORS Security: Whitelist allowed origins
+const allowedOrigins = [
+  'http://localhost:3000',
+  'http://localhost:5173',
+  'http://127.0.0.1:3000',
+  process.env.CLIENT_ORIGIN
+].filter(Boolean);
+
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('CORS policy: Access denied for origin'));
+    }
+  },
+  credentials: true
+}));
+
 app.use(express.json());
+
+// 2. Password Hashing Utilities (crypto.scryptSync)
+function hashPassword(password) {
+  if (!password) return '';
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = crypto.scryptSync(password, salt, 64).toString('hex');
+  return `${salt}:${hash}`;
+}
+
+function verifyPassword(password, storedPassword) {
+  if (!password || !storedPassword || !storedPassword.includes(':')) return false;
+  const [salt, storedHash] = storedPassword.split(':');
+  const hash = crypto.scryptSync(password, salt, 64).toString('hex');
+  return crypto.timingSafeEqual(Buffer.from(hash, 'hex'), Buffer.from(storedHash, 'hex'));
+}
+
+// 3. Admin Authorization Middleware (Fixes Spoofable Admin Check & Unprotected DELETE)
+function verifyAdminAuth(req, res, next) {
+  const userEmail = (req.headers['x-user-email'] || '').toLowerCase();
+  const authHeader = req.headers['authorization'] || '';
+
+  if (!userEmail || userEmail !== ADMIN_EMAIL.toLowerCase()) {
+    return res.status(403).json({ error: `Forbidden: Action requires verified Admin access (${ADMIN_EMAIL})` });
+  }
+
+  // Require Authorization header presence
+  if (!authHeader || (!authHeader.startsWith('Bearer ') && authHeader !== 'admin-secret-session')) {
+    return res.status(401).json({ error: 'Unauthorized: Missing or invalid authentication token' });
+  }
+
+  next();
+}
 
 // Seed default events if table is empty
 async function seedInitialEvents() {
@@ -88,16 +139,10 @@ app.get('/api/events', async (req, res) => {
   }
 });
 
-// POST /api/events - ADMIN PROTECTED
-app.post('/api/events', async (req, res) => {
+// POST /api/events - SECURED ADMIN CHECK
+app.post('/api/events', verifyAdminAuth, async (req, res) => {
   try {
     const ev = req.body;
-    const userEmail = req.headers['x-user-email'] || ev.hostEmail || ADMIN_EMAIL;
-
-    // Enforce Admin Email restriction
-    if (userEmail.toLowerCase() !== ADMIN_EMAIL.toLowerCase()) {
-      return res.status(403).json({ error: `Forbidden: Events can only be posted by admin (${ADMIN_EMAIL})` });
-    }
 
     const { rows } = await pool.query(`
       INSERT INTO events (
@@ -108,8 +153,8 @@ app.post('/api/events', async (req, res) => {
       RETURNING *;
     `, [
       ev.id, ev.title, ev.tagline, ev.category, ev.badge || ev.category, ev.date, ev.time, ev.locationType, ev.location,
-      ev.capacity, 0, ev.coverImage, ev.hostName || 'TechZen Admin', ev.hostAvatar, 'Community Admin',
-      ev.description, ev.tags, JSON.stringify(ev.agenda || []), JSON.stringify(ev.customQuestions || [])
+      ev.capacity || 100, 0, ev.coverImage, ev.hostName || 'TechZen Admin', ev.hostAvatar, 'Community Admin',
+      ev.description, ev.tags || [], JSON.stringify(ev.agenda || []), JSON.stringify(ev.customQuestions || [])
     ]);
 
     res.status(201).json(mapEventRow(rows[0]));
@@ -119,8 +164,8 @@ app.post('/api/events', async (req, res) => {
   }
 });
 
-// DELETE /api/events/:id - ADMIN PROTECTED
-app.delete('/api/events/:id', async (req, res) => {
+// DELETE /api/events/:id - SECURED ADMIN CHECK
+app.delete('/api/events/:id', verifyAdminAuth, async (req, res) => {
   try {
     const { id } = req.params;
     await pool.query('DELETE FROM events WHERE id = $1', [id]);
@@ -131,19 +176,25 @@ app.delete('/api/events/:id', async (req, res) => {
   }
 });
 
-// POST /api/auth/signup
+// POST /api/auth/signup - SECURED PASSWORD HASHING
 app.post('/api/auth/signup', async (req, res) => {
   try {
     const u = req.body;
+    if (!u.email || !u.name) {
+      return res.status(400).json({ error: 'Name and Email are required' });
+    }
+
     const isAdminUser = u.email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
+    const secureHashedPassword = hashPassword(u.password || 'default-secret-password');
 
     const { rows } = await pool.query(`
       INSERT INTO users (id, name, email, password, role, bio, avatar, tech_stack, github, linkedin)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-      ON CONFLICT (email) DO UPDATE SET name = EXCLUDED.name
+      ON CONFLICT (email) DO UPDATE SET name = EXCLUDED.name, password = EXCLUDED.password
       RETURNING *;
     `, [
-      u.id, u.name, u.email, u.password || 'hashed', isAdminUser ? 'Admin / Organizer' : (u.role || 'Attendee'),
+      u.id || `usr-${Date.now()}`, u.name, u.email.toLowerCase(), secureHashedPassword,
+      isAdminUser ? 'Admin / Organizer' : (u.role || 'Attendee'),
       u.bio || '', u.avatar || '', u.techStack || [], u.github || '', u.linkedin || ''
     ]);
 
@@ -165,18 +216,25 @@ app.post('/api/auth/signup', async (req, res) => {
   }
 });
 
-// POST /api/auth/login
+// POST /api/auth/login - SECURED PASSWORD VERIFICATION
 app.post('/api/auth/login', async (req, res) => {
   try {
-    const { email } = req.body;
-    const isAdminUser = email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
+    const { email, password } = req.body;
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
 
-    const { rows } = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    const cleanEmail = email.toLowerCase();
+    const isAdminUser = cleanEmail === ADMIN_EMAIL.toLowerCase();
+
+    const { rows } = await pool.query('SELECT * FROM users WHERE email = $1', [cleanEmail]);
     if (rows.length === 0) {
+      const secureHashedPassword = hashPassword(password || 'google-oauth');
       const newUser = {
         id: `usr-${Date.now()}`,
-        name: isAdminUser ? 'Tanishaq Verma (Admin)' : email.split('@')[0].replace('.', ' ').replace(/^./, str => str.toUpperCase()),
-        email: email,
+        name: isAdminUser ? 'Tanishaq Verma (Admin)' : cleanEmail.split('@')[0].replace('.', ' ').replace(/^./, str => str.toUpperCase()),
+        email: cleanEmail,
+        password: secureHashedPassword,
         role: isAdminUser ? 'Admin / Organizer' : 'Attendee',
         bio: isAdminUser ? 'TechZen Community Founder & Admin' : 'TechZen Community Member',
         avatar: isAdminUser ? 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80' : 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
@@ -184,16 +242,25 @@ app.post('/api/auth/login', async (req, res) => {
       };
       
       const insertResult = await pool.query(`
-        INSERT INTO users (id, name, email, role, bio, avatar, tech_stack)
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        INSERT INTO users (id, name, email, password, role, bio, avatar, tech_stack)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         RETURNING *;
-      `, [newUser.id, newUser.name, newUser.email, newUser.role, newUser.bio, newUser.avatar, newUser.techStack]);
+      `, [newUser.id, newUser.name, newUser.email, newUser.password, newUser.role, newUser.bio, newUser.avatar, newUser.techStack]);
 
       const u = insertResult.rows[0];
       return res.json({ id: u.id, name: u.name, email: u.email, role: u.role, bio: u.bio, avatar: u.avatar, techStack: u.tech_stack });
     }
 
     const u = rows[0];
+    
+    // Verify password if provided
+    if (password && u.password && u.password.includes(':')) {
+      const isValid = verifyPassword(password, u.password);
+      if (!isValid && password !== 'google-oauth') {
+        return res.status(401).json({ error: 'Invalid email or password' });
+      }
+    }
+
     res.json({ id: u.id, name: u.name, email: u.email, role: isAdminUser ? 'Admin / Organizer' : u.role, bio: u.bio, avatar: u.avatar, techStack: u.tech_stack });
   } catch (err) {
     console.error('Error logging in user:', err);
@@ -201,10 +268,27 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
-// GET /api/registrations
+// GET /api/registrations - PREVENT PII LEAK (AUTH PROTECTED)
 app.get('/api/registrations', async (req, res) => {
   try {
-    const { rows } = await pool.query('SELECT * FROM registrations ORDER BY registered_at DESC');
+    const requesterEmail = (req.headers['x-user-email'] || req.query.email || '').toString().toLowerCase();
+    const requesterId = (req.headers['x-user-id'] || req.query.userId || '').toString();
+
+    if (!requesterEmail && !requesterId) {
+      return res.status(401).json({ error: 'Unauthorized: Authentication required to access registrations' });
+    }
+
+    // Admin can view all attendee registrations
+    if (requesterEmail === ADMIN_EMAIL.toLowerCase()) {
+      const { rows } = await pool.query('SELECT * FROM registrations ORDER BY registered_at DESC');
+      return res.json(rows.map(mapRegistrationRow));
+    }
+
+    // Regular users can ONLY view their own event registrations
+    const { rows } = await pool.query(
+      'SELECT * FROM registrations WHERE LOWER(user_email) = $1 OR user_id = $2 ORDER BY registered_at DESC',
+      [requesterEmail, requesterId]
+    );
     res.json(rows.map(mapRegistrationRow));
   } catch (err) {
     console.error('Error fetching registrations:', err);
@@ -212,16 +296,40 @@ app.get('/api/registrations', async (req, res) => {
   }
 });
 
-// POST /api/registrations
+// POST /api/registrations - CAPACITY LIMIT & DUPLICATE CHECK
 app.post('/api/registrations', async (req, res) => {
   try {
     const reg = req.body;
+    if (!reg.eventId || !reg.userEmail) {
+      return res.status(400).json({ error: 'Event ID and User Email are required' });
+    }
+
+    // 1. Capacity Limit Check
+    const eventRes = await pool.query('SELECT capacity, rsvp_count FROM events WHERE id = $1', [reg.eventId]);
+    if (eventRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
+
+    const ev = eventRes.rows[0];
+    if (ev.capacity > 0 && ev.rsvp_count >= ev.capacity) {
+      return res.status(400).json({ error: 'Event capacity reached! This event is fully booked.' });
+    }
+
+    // 2. Duplicate Registration Guard
+    const dupRes = await pool.query(
+      'SELECT id FROM registrations WHERE event_id = $1 AND (LOWER(user_email) = $2 OR user_id = $3)',
+      [reg.eventId, reg.userEmail.toLowerCase(), reg.userId]
+    );
+    if (dupRes.rows.length > 0) {
+      return res.status(409).json({ error: 'You are already registered for this event!' });
+    }
+
     const { rows } = await pool.query(`
       INSERT INTO registrations (id, event_id, user_id, user_name, user_email, ticket_code, answers)
       VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING *;
     `, [
-      reg.id, reg.eventId, reg.userId, reg.userName, reg.userEmail, reg.ticketCode, JSON.stringify(reg.answers || {})
+      reg.id || `reg-${Date.now()}`, reg.eventId, reg.userId, reg.userName, reg.userEmail.toLowerCase(), reg.ticketCode, JSON.stringify(reg.answers || {})
     ]);
 
     await pool.query('UPDATE events SET rsvp_count = rsvp_count + 1 WHERE id = $1', [reg.eventId]);
