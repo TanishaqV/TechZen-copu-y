@@ -584,36 +584,52 @@ export default function EventDetail() {
 
                         <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 font-mono text-xs">
                           <div>
-                            <label className="block text-white/70 mb-1 font-semibold">Full Name *</label>
+                            <label className="block text-white/70 mb-1 font-semibold flex items-center justify-between">
+                              <span>Full Name *</span>
+                              {isLead && <span className="text-[10px] text-[#ef2635] font-normal font-mono">🔒 Locked to Leader</span>}
+                            </label>
                             <input
                               type="text"
                               required
-                              value={member.name}
+                              readOnly={isLead}
+                              value={isLead ? (currentUser?.name || userProfile.fullName || member.name) : member.name}
                               onChange={(e) => {
+                                if (isLead) return;
                                 const val = e.target.value;
                                 setTeammates((prev) => prev.map((t) => (t.id === member.id ? { ...t, name: val } : t)));
-                                if (isLead) setUserProfile((p) => ({ ...p, fullName: val }));
                                 setValidationError('');
                               }}
-                              placeholder={isLead ? 'Team Admin Name' : 'Member Full Name'}
-                              className="w-full bg-[#111] border border-white/15 px-3 py-2 text-white outline-none focus:border-[#ef2635]"
+                              placeholder={isLead ? 'Team Leader Name' : 'Member Full Name'}
+                              className={`w-full px-3 py-2 outline-none ${
+                                isLead 
+                                  ? 'bg-[#18181f] border border-[#ef2635]/40 text-white font-bold cursor-not-allowed' 
+                                  : 'bg-[#111] border border-white/15 text-white focus:border-[#ef2635]'
+                              }`}
                             />
                           </div>
 
                           <div>
-                            <label className="block text-white/70 mb-1 font-semibold">Email Address *</label>
+                            <label className="block text-white/70 mb-1 font-semibold flex items-center justify-between">
+                              <span>Email Address *</span>
+                              {isLead && <span className="text-[10px] text-[#ef2635] font-normal font-mono">🔒 Verified Email</span>}
+                            </label>
                             <input
                               type="email"
                               required
-                              value={member.email}
+                              readOnly={isLead}
+                              value={isLead ? (activeUserEmail || currentUser?.email || userProfile.email || member.email) : member.email}
                               onChange={(e) => {
+                                if (isLead) return;
                                 const val = e.target.value;
                                 setTeammates((prev) => prev.map((t) => (t.id === member.id ? { ...t, email: val } : t)));
-                                if (isLead) setUserProfile((p) => ({ ...p, email: val }));
                                 setValidationError('');
                               }}
-                              placeholder={isLead ? 'admin@gmail.com' : 'member@gmail.com'}
-                              className="w-full bg-[#111] border border-white/15 px-3 py-2 text-white outline-none focus:border-[#ef2635]"
+                              placeholder={isLead ? 'leader@gmail.com' : 'member@gmail.com'}
+                              className={`w-full px-3 py-2 outline-none ${
+                                isLead 
+                                  ? 'bg-[#18181f] border border-[#ef2635]/40 text-white font-bold cursor-not-allowed' 
+                                  : 'bg-[#111] border border-white/15 text-white focus:border-[#ef2635]'
+                              }`}
                             />
                           </div>
 
