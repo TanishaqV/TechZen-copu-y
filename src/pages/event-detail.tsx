@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowUpRight, CalendarDays, Check, Code, Copy, FileText, MapPin, Plus, Send, ShieldCheck, Trash2, Upload, User, Users, GraduationCap } from 'lucide-react';
+import { ArrowLeft, ArrowUpRight, CalendarDays, Check, Code, Copy, FileText, MapPin, Plus, Send, ShieldCheck, Trash2, Upload, User, Users, GraduationCap, Link as LinkIcon } from 'lucide-react';
 import { useEffect, useState, useMemo, type FormEvent, type ChangeEvent } from 'react';
 import { Link, useParams, useLocation } from 'wouter';
 import { useSafeUser as useUser } from '@/lib/clerk-safe';
@@ -109,15 +109,24 @@ export default function EventDetail() {
   const [savedStatus, setSavedStatus] = useState('');
   const [validationError, setValidationError] = useState('');
 
+  const [teamInviteCode, setTeamInviteCode] = useState('');
+  const [copiedInviteLink, setCopiedInviteLink] = useState(false);
+  const [incomingInvite, setIncomingInvite] = useState<{ inviteCode: string; teamName: string; leaderName: string; leaderEmail: string } | null>(null);
+
   useEffect(() => {
     if (currentUser || clerkUser) {
       const name = currentUser?.name || [clerkUser?.firstName, clerkUser?.lastName].filter(Boolean).join(' ') || 'TechZen Builder';
       const email = activeUserEmail;
       setUserProfile((prev) => ({ ...prev, fullName: prev.fullName || name, email: prev.email || email }));
-      setTeammates((prev) => prev.map((t, idx) => (idx === 0 ? { ...t, name: t.name || name, email: t.email || email } : t)));
+      setTeammates((prev) => prev.map((t, idx) => (idx === 0 ? { ...t, name: name, email: email } : t)));
     }
 
     if (rawId) {
+      // 1. Generate or retrieve unique team invite code for this leader & event
+      const userEmail = activeUserEmail || currentUser?.email || 'leader';
+      const cleanEmail = userEmail.toLowerCase().replace(/[^a-z0-9]/g, '');
+      const defaultCode = `TEAM-${rawId.substring(0, 6).toUpperCase()}-${cleanEmail.substring(0, 6).toUpperCase()}`;
+
       const savedKey = `techzen_event_submission_${rawId}_user`;
       const saved = localStorage.getItem(savedKey);
       if (saved) {
@@ -128,8 +137,33 @@ export default function EventDetail() {
           if (parsed.teammates) setTeammates(parsed.teammates);
           if (parsed.project) setProjectSubmission(parsed.project);
           if (parsed.userProfile) setUserProfile(parsed.userProfile);
+          if (parsed.teamInviteCode) setTeamInviteCode(parsed.teamInviteCode);
         } catch (e) {
           console.error(e);
+        }
+      }
+
+      setTeamInviteCode((existing) => existing || defaultCode);
+
+      // 2. Check if current URL contains a team invite link query parameter: ?teamInvite=...
+      const urlParams = new URLSearchParams(window.location.search);
+      const inviteParam = urlParams.get('teamInvite');
+      if (inviteParam) {
+        setActiveTab('team');
+        const savedInvite = localStorage.getItem(`techzen_team_invite_${rawId}_${inviteParam}`);
+        if (savedInvite) {
+          try {
+            const parsedInvite = JSON.parse(savedInvite);
+            setIncomingInvite(parsedInvite);
+            if (parsedInvite.teamName) setTeamName(parsedInvite.teamName);
+          } catch (e) {}
+        } else {
+          setIncomingInvite({
+            inviteCode: inviteParam,
+            teamName: 'Invited Team',
+            leaderName: 'Team Leader',
+            leaderEmail: 'Leader Contact'
+          });
         }
       }
     }
@@ -240,18 +274,71 @@ export default function EventDetail() {
       participantCount: processedTeammates.length,
       teammates: processedTeammates,
       userProfile,
-      project: projectSubmission
+      project: projectSubmission,
+      teamInviteCode
     };
 
     if (rawId) {
       localStorage.setItem(`techzen_event_submission_${rawId}_user`, JSON.stringify(payload));
+      if (teamInviteCode) {
+        const invitePayload = {
+          eventId: rawId,
+          inviteCode: teamInviteCode,
+          teamName: teamName.trim(),
+          leaderName: currentUser?.name || userProfile.fullName,
+          leaderEmail: activeUserEmail || currentUser?.email,
+          teammates: processedTeammates
+        };
+        localStorage.setItem(`techzen_team_invite_${rawId}_${teamInviteCode}`, JSON.stringify(invitePayload));
+      }
     }
     setSavedStatus('✅ Team & Leader details saved successfully!');
+    if (showToast) showToast('🔗 Shareable Team Invite Link updated & ready!');
     setTimeout(() => setSavedStatus(''), 3000);
 
     if (!isQuizEvent) {
       setActiveTab('project');
     }
+  };
+
+  const handleCopyInviteLink = () => {
+    const inviteUrl = `${window.location.origin}/events/${rawId}?teamInvite=${teamInviteCode}`;
+    navigator.clipboard.writeText(inviteUrl);
+    setCopiedInviteLink(true);
+    if (showToast) showToast('🔗 Unique Team Invite Link copied to clipboard!');
+    setTimeout(() => setCopiedInviteLink(false), 3000);
+  };
+
+  const handleJoinTeamAsMember = () => {
+    if (!currentUser) {
+      if (showToast) showToast('🔒 Please sign in to join this team!', 'error');
+      if (typeof openAuth === 'function') openAuth('login');
+      return;
+    }
+
+    const userEmail = activeUserEmail || currentUser.email;
+    const userName = currentUser.name || 'Team Member';
+
+    // Check if user is already in the team
+    const alreadyInTeam = teammates.some(t => t.email.toLowerCase() === userEmail.toLowerCase());
+    if (alreadyInTeam) {
+      if (showToast) showToast('ℹ️ You are already a member of this team!', 'info');
+      setIncomingInvite(null);
+      return;
+    }
+
+    // Assign teammate to an empty slot or expand member slots
+    setTeammates((prev) => {
+      const emptySlotIndex = prev.findIndex((t, idx) => idx > 0 && (!t.email || !t.email.trim()));
+      if (emptySlotIndex !== -1) {
+        return prev.map((t, idx) => idx === emptySlotIndex ? { ...t, name: userName, email: userEmail, role: 'Software Developer' } : t);
+      }
+      return [...prev, { id: Date.now(), name: userName, email: userEmail, phone: '', college: '', role: 'Software Developer' }];
+    });
+
+    setParticipantCount((prev) => Math.max(prev, teammates.length + 1));
+    if (showToast) showToast(`🎉 You have joined Team "${incomingInvite?.teamName || teamName || 'the Team'}"!`);
+    setIncomingInvite(null);
   };
 
   const handlePptFileUpload = (e: ChangeEvent<HTMLInputElement>) => {
@@ -500,6 +587,68 @@ export default function EventDetail() {
               </div>
             ) : (
               <div className="max-w-5xl space-y-8">
+
+              {/* Teammate Invitation Card (When opening a leader's shareable link) */}
+              {incomingInvite && (
+                <div className="border border-emerald-500/50 bg-emerald-950/30 p-6 rounded-xl space-y-3 animate-fadeIn">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 text-emerald-400 font-mono text-xs font-bold uppercase">
+                        <Users size={16} />
+                        <span>Official Team Invitation</span>
+                      </div>
+                      <h3 className="text-base font-bold text-white font-mono">
+                        You've been invited to join <span className="text-emerald-400">"{incomingInvite.teamName || 'Team'}"</span>
+                      </h3>
+                      <p className="text-xs text-white/60">
+                        Team Leader: <strong className="text-white">{incomingInvite.leaderName}</strong> ({incomingInvite.leaderEmail})
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleJoinTeamAsMember}
+                      className="bg-emerald-600 hover:bg-emerald-500 text-white font-mono font-bold px-6 py-3 text-xs uppercase tracking-wider transition cursor-pointer shadow-[0_0_15px_rgba(16,185,129,0.3)] shrink-0 flex items-center gap-2"
+                    >
+                      <span>Join Team Now</span>
+                      <ArrowUpRight size={15} />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Unique Shareable Team Invite Link Box for Leader */}
+              {teamInviteCode && (
+                <div className="border border-[#ef2635]/40 bg-gradient-to-r from-[#ef2635]/15 via-black/80 to-black/60 p-6 rounded-xl space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-[#ef2635] font-mono text-xs font-bold uppercase tracking-wider">
+                      <LinkIcon size={16} />
+                      <span>Unique Leader Invite Link for Teammates</span>
+                    </div>
+                    <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950/70 border border-emerald-800/60 px-2 py-0.5 font-bold">
+                      SHAREABLE LINK
+                    </span>
+                  </div>
+                  <p className="text-xs text-white/70 font-sans">
+                    Share this unique link with your teammates so they can join <strong className="text-white">{teamName || 'your team'}</strong> directly by signing in!
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      readOnly
+                      value={`${window.location.origin}/events/${rawId}?teamInvite=${teamInviteCode}`}
+                      className="w-full bg-black/90 border border-white/20 px-3.5 py-2.5 text-xs font-mono text-white/90 select-all outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleCopyInviteLink}
+                      className="bg-[#ef2635] hover:bg-[#ff3d4b] text-white font-mono text-xs font-bold px-5 py-2.5 uppercase tracking-wider shrink-0 transition cursor-pointer flex items-center gap-1.5 shadow-[0_0_15px_rgba(239,38,53,0.3)]"
+                    >
+                      {copiedInviteLink ? <Check size={14} /> : <Copy size={14} />}
+                      <span>{copiedInviteLink ? 'Copied!' : 'Copy Link'}</span>
+                    </button>
+                  </div>
+                </div>
+              )}
               
               {/* Step 1: Team Name & Participant Count Selector */}
               <div className="border border-[#ef2635]/40 bg-[#161214] p-6 sm:p-8 rounded-xl space-y-5">
