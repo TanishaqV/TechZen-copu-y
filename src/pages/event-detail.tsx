@@ -176,6 +176,24 @@ export default function EventDetail() {
     }
   }, [currentUser, clerkUser, activeUserEmail, rawId]);
 
+  // Auto-persist shareable team invite record so link works instantly even before manual save
+  useEffect(() => {
+    if (rawId && teamInviteCode && teamName.trim() && (currentUser || clerkUser)) {
+      const leaderName = currentUser?.name || userProfile.fullName || 'Team Leader';
+      const leaderEmail = activeUserEmail || currentUser?.email || '';
+      const invitePayload = {
+        eventId: rawId,
+        inviteCode: teamInviteCode,
+        teamName: teamName.trim(),
+        leaderName,
+        leaderEmail,
+        participantCount: teammates.length,
+        teammates: teammates
+      };
+      localStorage.setItem(`techzen_team_invite_${rawId}_${teamInviteCode}`, JSON.stringify(invitePayload));
+    }
+  }, [rawId, teamInviteCode, teamName, teammates, currentUser, clerkUser, userProfile.fullName, activeUserEmail]);
+
   const handleCopyLink = () => {
     navigator.clipboard.writeText(window.location.href);
     setCopiedLink(true);
