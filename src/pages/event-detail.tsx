@@ -114,7 +114,35 @@ export default function EventDetail() {
   const [incomingInvite, setIncomingInvite] = useState<{ inviteCode: string; teamName: string; leaderName: string; leaderEmail: string } | null>(null);
 
   useEffect(() => {
-    if (currentUser || clerkUser) {
+    const urlParams = new URLSearchParams(window.location.search);
+    const inviteParam = urlParams.get('teamInvite');
+
+    // 1. Check if user opened a shareable Team Invite link
+    if (rawId && inviteParam) {
+      setActiveTab('team');
+      const savedInvite = localStorage.getItem(`techzen_team_invite_${rawId}_${inviteParam}`);
+      if (savedInvite) {
+        try {
+          const parsedInvite = JSON.parse(savedInvite);
+          setIncomingInvite(parsedInvite);
+          if (parsedInvite.teamName) setTeamName(parsedInvite.teamName);
+          if (parsedInvite.participantCount) setParticipantCount(parsedInvite.participantCount);
+          if (parsedInvite.teammates && parsedInvite.teammates.length > 0) {
+            setTeammates(parsedInvite.teammates);
+          }
+        } catch (e) {
+          console.error(e);
+        }
+      } else {
+        setIncomingInvite({
+          inviteCode: inviteParam,
+          teamName: 'Invited Team',
+          leaderName: 'Team Leader',
+          leaderEmail: 'Leader Contact'
+        });
+      }
+    } else if (currentUser || clerkUser) {
+      // 2. Normal Leader View: Set Member #1 to Logged-In User
       const name = currentUser?.name || [clerkUser?.firstName, clerkUser?.lastName].filter(Boolean).join(' ') || 'TechZen Builder';
       const email = activeUserEmail;
       setUserProfile((prev) => ({ ...prev, fullName: prev.fullName || name, email: prev.email || email }));
@@ -122,50 +150,29 @@ export default function EventDetail() {
     }
 
     if (rawId) {
-      // 1. Generate or retrieve unique team invite code for this leader & event
       const userEmail = activeUserEmail || currentUser?.email || 'leader';
       const cleanEmail = userEmail.toLowerCase().replace(/[^a-z0-9]/g, '');
       const defaultCode = `TEAM-${rawId.substring(0, 6).toUpperCase()}-${cleanEmail.substring(0, 6).toUpperCase()}`;
 
-      const savedKey = `techzen_event_submission_${rawId}_user`;
-      const saved = localStorage.getItem(savedKey);
-      if (saved) {
-        try {
-          const parsed = JSON.parse(saved);
-          if (parsed.teamName) setTeamName(parsed.teamName);
-          if (parsed.participantCount) setParticipantCount(parsed.participantCount);
-          if (parsed.teammates) setTeammates(parsed.teammates);
-          if (parsed.project) setProjectSubmission(parsed.project);
-          if (parsed.userProfile) setUserProfile(parsed.userProfile);
-          if (parsed.teamInviteCode) setTeamInviteCode(parsed.teamInviteCode);
-        } catch (e) {
-          console.error(e);
+      if (!inviteParam) {
+        const savedKey = `techzen_event_submission_${rawId}_user`;
+        const saved = localStorage.getItem(savedKey);
+        if (saved) {
+          try {
+            const parsed = JSON.parse(saved);
+            if (parsed.teamName) setTeamName(parsed.teamName);
+            if (parsed.participantCount) setParticipantCount(parsed.participantCount);
+            if (parsed.teammates) setTeammates(parsed.teammates);
+            if (parsed.project) setProjectSubmission(parsed.project);
+            if (parsed.userProfile) setUserProfile(parsed.userProfile);
+            if (parsed.teamInviteCode) setTeamInviteCode(parsed.teamInviteCode);
+          } catch (e) {
+            console.error(e);
+          }
         }
       }
 
       setTeamInviteCode((existing) => existing || defaultCode);
-
-      // 2. Check if current URL contains a team invite link query parameter: ?teamInvite=...
-      const urlParams = new URLSearchParams(window.location.search);
-      const inviteParam = urlParams.get('teamInvite');
-      if (inviteParam) {
-        setActiveTab('team');
-        const savedInvite = localStorage.getItem(`techzen_team_invite_${rawId}_${inviteParam}`);
-        if (savedInvite) {
-          try {
-            const parsedInvite = JSON.parse(savedInvite);
-            setIncomingInvite(parsedInvite);
-            if (parsedInvite.teamName) setTeamName(parsedInvite.teamName);
-          } catch (e) {}
-        } else {
-          setIncomingInvite({
-            inviteCode: inviteParam,
-            teamName: 'Invited Team',
-            leaderName: 'Team Leader',
-            leaderEmail: 'Leader Contact'
-          });
-        }
-      }
     }
   }, [currentUser, clerkUser, activeUserEmail, rawId]);
 
@@ -320,24 +327,54 @@ export default function EventDetail() {
     const userName = currentUser.name || 'Team Member';
 
     // Check if user is already in the team
-    const alreadyInTeam = teammates.some(t => t.email.toLowerCase() === userEmail.toLowerCase());
+    const alreadyInTeam = teammates.some(t => t.email && t.email.toLowerCase() === userEmail.toLowerCase());
     if (alreadyInTeam) {
-      if (showToast) showToast('ℹ️ You are already a member of this team!', 'info');
+      if (showToast) showToast('ℹ️ You are already a registered member of this team!', 'info');
       setIncomingInvite(null);
       return;
     }
 
-    // Assign teammate to an empty slot or expand member slots
-    setTeammates((prev) => {
-      const emptySlotIndex = prev.findIndex((t, idx) => idx > 0 && (!t.email || !t.email.trim()));
-      if (emptySlotIndex !== -1) {
-        return prev.map((t, idx) => idx === emptySlotIndex ? { ...t, name: userName, email: userEmail, role: 'Software Developer' } : t);
-      }
-      return [...prev, { id: Date.now(), name: userName, email: userEmail, phone: '', college: '', role: 'Software Developer' }];
-    });
+    let updatedTeammates = [...teammates];
+    const emptySlotIndex = updatedTeammates.findIndex((t, idx) => idx > 0 && (!t.email || !t.email.trim()));
+    
+    if (emptySlotIndex !== -1) {
+      updatedTeammates[emptySlotIndex] = {
+        ...updatedTeammates[emptySlotIndex],
+        name: userName,
+        email: userEmail,
+        role: updatedTeammates[emptySlotIndex].role && updatedTeammates[emptySlotIndex].role !== '-- Select Role --' ? updatedTeammates[emptySlotIndex].role : 'Software Developer'
+      };
+    } else {
+      updatedTeammates.push({
+        id: Date.now(),
+        name: userName,
+        email: userEmail,
+        phone: '',
+        college: '',
+        role: 'Software Developer',
+        customRole: ''
+      });
+    }
 
-    setParticipantCount((prev) => Math.max(prev, teammates.length + 1));
-    if (showToast) showToast(`🎉 You have joined Team "${incomingInvite?.teamName || teamName || 'the Team'}"!`);
+    setTeammates(updatedTeammates);
+    setParticipantCount(updatedTeammates.length);
+
+    // Save updated team payload to localStorage for leader and teammates
+    const inviteParam = new URLSearchParams(window.location.search).get('teamInvite');
+    if (rawId && inviteParam) {
+      const invitePayload = {
+        eventId: rawId,
+        inviteCode: inviteParam,
+        teamName: teamName.trim() || incomingInvite?.teamName || 'Team',
+        leaderName: incomingInvite?.leaderName || 'Team Leader',
+        leaderEmail: incomingInvite?.leaderEmail || '',
+        teammates: updatedTeammates
+      };
+      localStorage.setItem(`techzen_team_invite_${rawId}_${inviteParam}`, JSON.stringify(invitePayload));
+      localStorage.setItem(`techzen_event_submission_${rawId}_user`, JSON.stringify(invitePayload));
+    }
+
+    if (showToast) showToast(`🎉 You have successfully joined Team "${incomingInvite?.teamName || teamName || 'the Team'}"!`);
     setIncomingInvite(null);
   };
 
