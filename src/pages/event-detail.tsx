@@ -120,6 +120,8 @@ export default function EventDetail() {
     // 1. Check if user opened a shareable Team Invite link (Fetch from Supabase database)
     if (rawId && inviteParam) {
       setActiveTab('team');
+      setTeamInviteCode(inviteParam);
+
       fetch(`/api/teams/${inviteParam}`)
         .then(res => res.ok ? res.json() : null)
         .then(data => {
@@ -151,50 +153,34 @@ export default function EventDetail() {
             } catch (e) {}
           }
         });
-    } else if (currentUser || clerkUser) {
+    } else if (rawId && (currentUser || clerkUser)) {
       // 2. Normal Leader View: Set Member #1 to Logged-In User
       const name = currentUser?.name || [clerkUser?.firstName, clerkUser?.lastName].filter(Boolean).join(' ') || 'TechZen Builder';
       const email = activeUserEmail;
       setUserProfile((prev) => ({ ...prev, fullName: prev.fullName || name, email: prev.email || email }));
       setTeammates((prev) => prev.map((t, idx) => (idx === 0 ? { ...t, name: name, email: email } : t)));
-    }
 
-    if (rawId) {
-      const userEmail = activeUserEmail || currentUser?.email || 'leader';
-      const cleanEmail = userEmail.toLowerCase().replace(/[^a-z0-9]/g, '');
+      const cleanEmail = (email || 'leader').toLowerCase().replace(/[^a-z0-9]/g, '');
       const defaultCode = `TEAM-${rawId.substring(0, 6).toUpperCase()}-${cleanEmail.substring(0, 6).toUpperCase()}`;
-
-      if (!inviteParam) {
-        const savedKey = `techzen_event_submission_${rawId}_user`;
-        const saved = localStorage.getItem(savedKey);
-        if (saved) {
-          try {
-            const parsed = JSON.parse(saved);
-            if (parsed.teamName) setTeamName(parsed.teamName);
-            if (parsed.participantCount) setParticipantCount(parsed.participantCount);
-            if (parsed.teammates) setTeammates(parsed.teammates);
-            if (parsed.project) setProjectSubmission(parsed.project);
-            if (parsed.userProfile) setUserProfile(parsed.userProfile);
-            if (parsed.teamInviteCode) setTeamInviteCode(parsed.teamInviteCode);
-          } catch (e) {
-            console.error(e);
-          }
-        }
-      }
-
       setTeamInviteCode((existing) => existing || defaultCode);
     }
   }, [currentUser, clerkUser, activeUserEmail, rawId]);
 
-  // Auto-persist shareable team invite record to Supabase database
+  // Auto-persist shareable team invite record to Supabase database for Team Leader
   useEffect(() => {
-    if (rawId && teamInviteCode && teamName.trim() && (currentUser || clerkUser)) {
+    const urlParams = new URLSearchParams(window.location.search);
+    const inviteParam = urlParams.get('teamInvite');
+
+    // Only auto-persist if current user IS the Team Leader (i.e. NO inviteParam in URL or inviteParam matches leader's code)
+    if (rawId && teamInviteCode && (!inviteParam || inviteParam === teamInviteCode) && (currentUser || clerkUser)) {
       const leaderName = currentUser?.name || userProfile.fullName || 'Team Leader';
       const leaderEmail = activeUserEmail || currentUser?.email || '';
+      const finalTeamName = teamName.trim() || `${leaderName}'s Team`;
+
       const invitePayload = {
         eventId: rawId,
         inviteCode: teamInviteCode,
-        teamName: teamName.trim(),
+        teamName: finalTeamName,
         leaderName,
         leaderEmail,
         participantCount: teammates.length,
@@ -361,14 +347,15 @@ export default function EventDetail() {
     const userEmail = activeUserEmail || currentUser.email;
     const userName = currentUser.name || 'Team Member';
     const inviteParam = new URLSearchParams(window.location.search).get('teamInvite');
+    const targetInviteCode = inviteParam || teamInviteCode;
 
-    if (rawId && inviteParam) {
+    if (rawId && targetInviteCode) {
       try {
         const res = await fetch('/api/teams/join', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            inviteCode: inviteParam,
+            inviteCode: targetInviteCode,
             userEmail,
             userName
           })
