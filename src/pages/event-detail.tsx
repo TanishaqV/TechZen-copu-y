@@ -919,7 +919,7 @@ export default function EventDetail() {
                               type="text"
                               required
                               readOnly={isLead}
-                              value={isLead ? (currentUser?.name || userProfile.fullName || member.name) : member.name}
+                              value={member.name || (isLead ? (currentUser?.name || userProfile.fullName) : '')}
                               onChange={(e) => {
                                 if (isLead) return;
                                 const val = e.target.value;
@@ -944,7 +944,7 @@ export default function EventDetail() {
                               type="email"
                               required
                               readOnly={isLead}
-                              value={isLead ? (activeUserEmail || currentUser?.email || userProfile.email || member.email) : member.email}
+                              value={member.email || (isLead ? (activeUserEmail || currentUser?.email || userProfile.email) : '')}
                               onChange={(e) => {
                                 if (isLead) return;
                                 const val = e.target.value;
