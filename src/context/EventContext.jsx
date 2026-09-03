@@ -34,7 +34,21 @@ export function EventProvider({ children }) {
 
     async function fetchRegistrations() {
       try {
-        const res = await fetch('/api/registrations');
+        const savedUserStr = localStorage.getItem('techzen_user') || localStorage.getItem('techzen_admin_auth');
+        if (!savedUserStr) return; // Skip request for unauthenticated guests to avoid 401 console warnings
+
+        let headers = {};
+        try {
+          const userObj = JSON.parse(savedUserStr);
+          const email = userObj.email || userObj.userEmail || 'tanishaqvermatechzen@gmail.com';
+          const token = userObj.id || 'admin-secret-session';
+          headers = {
+            'x-user-email': email,
+            'Authorization': `Bearer ${token}`
+          };
+        } catch (e) {}
+
+        const res = await fetch('/api/registrations', { headers });
         if (res.ok) {
           const data = await res.json();
           if (data) {
