@@ -72,6 +72,21 @@ export async function initDatabase() {
       );
     `);
 
+    // Teams table for live multi-user team onboarding & invite links
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS teams (
+        id VARCHAR(255) PRIMARY KEY,
+        event_id VARCHAR(255) REFERENCES events(id) ON DELETE CASCADE,
+        invite_code VARCHAR(255) UNIQUE NOT NULL,
+        team_name VARCHAR(255) NOT NULL,
+        leader_name VARCHAR(255) NOT NULL,
+        leader_email VARCHAR(255) NOT NULL,
+        participant_count INTEGER DEFAULT 1,
+        teammates JSONB NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
     console.log('✅ Supabase Database tables created/verified successfully!');
   } catch (err) {
     console.error('❌ Database Initialization Error:', err);

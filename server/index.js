@@ -341,6 +341,119 @@ app.post('/api/registrations', async (req, res) => {
   }
 });
 
+function mapTeamRow(row) {
+  return {
+    id: row.id,
+    eventId: row.event_id,
+    inviteCode: row.invite_code,
+    teamName: row.team_name,
+    leaderName: row.leader_name,
+    leaderEmail: row.leader_email,
+    participantCount: row.participant_count,
+    teammates: typeof row.teammates === 'string' ? JSON.parse(row.teammates) : row.teammates,
+    createdAt: row.created_at
+  };
+}
+
+// POST /api/teams - CREATE OR UPDATE TEAM IN SUPABASE
+app.post('/api/teams', async (req, res) => {
+  try {
+    const t = req.body;
+    if (!t.eventId || !t.inviteCode || !t.teamName) {
+      return res.status(400).json({ error: 'eventId, inviteCode, and teamName are required' });
+    }
+
+    const { rows } = await pool.query(`
+      INSERT INTO teams (id, event_id, invite_code, team_name, leader_name, leader_email, participant_count, teammates)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      ON CONFLICT (invite_code) DO UPDATE SET
+        team_name = EXCLUDED.team_name,
+        leader_name = EXCLUDED.leader_name,
+        leader_email = EXCLUDED.leader_email,
+        participant_count = EXCLUDED.participant_count,
+        teammates = EXCLUDED.teammates
+      RETURNING *;
+    `, [
+      t.id || `team-${Date.now()}`, t.eventId, t.inviteCode, t.teamName,
+      t.leaderName || 'Leader', t.leaderEmail || '', t.participantCount || 1, JSON.stringify(t.teammates || [])
+    ]);
+
+    res.json(mapTeamRow(rows[0]));
+  } catch (err) {
+    console.error('Error saving team to Supabase:', err);
+    res.status(500).json({ error: 'Failed to save team' });
+  }
+});
+
+// GET /api/teams/:inviteCode - FETCH TEAM BY INVITE CODE FROM SUPABASE
+app.get('/api/teams/:inviteCode', async (req, res) => {
+  try {
+    const { inviteCode } = req.params;
+    const { rows } = await pool.query('SELECT * FROM teams WHERE invite_code = $1', [inviteCode]);
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'Team invite link not found or expired' });
+    }
+    res.json(mapTeamRow(rows[0]));
+  } catch (err) {
+    console.error('Error fetching team by invite code:', err);
+    res.status(500).json({ error: 'Failed to fetch team' });
+  }
+});
+
+// POST /api/teams/join - TEAMMATE JOINS TEAM IN SUPABASE
+app.post('/api/teams/join', async (req, res) => {
+  try {
+    const { inviteCode, userEmail, userName, college, role } = req.body;
+    if (!inviteCode || !userEmail) {
+      return res.status(400).json({ error: 'inviteCode and userEmail are required' });
+    }
+
+    const { rows } = await pool.query('SELECT * FROM teams WHERE invite_code = $1', [inviteCode]);
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'Team invite link not found' });
+    }
+
+    const team = mapTeamRow(rows[0]);
+    let updatedTeammates = [...team.teammates];
+
+    // Check if user is already in team
+    const alreadyMember = updatedTeammates.some(t => t.email && t.email.toLowerCase() === userEmail.toLowerCase());
+    if (!alreadyMember) {
+      const emptySlotIndex = updatedTeammates.findIndex((t, idx) => idx > 0 && (!t.email || !t.email.trim()));
+      if (emptySlotIndex !== -1) {
+        updatedTeammates[emptySlotIndex] = {
+          ...updatedTeammates[emptySlotIndex],
+          name: userName || 'Team Member',
+          email: userEmail.toLowerCase(),
+          college: college || updatedTeammates[emptySlotIndex].college || '',
+          role: role || 'Software Developer'
+        };
+      } else {
+        updatedTeammates.push({
+          id: Date.now(),
+          name: userName || 'Team Member',
+          email: userEmail.toLowerCase(),
+          college: college || '',
+          role: role || 'Software Developer',
+          customRole: ''
+        });
+      }
+    }
+
+    const updateRes = await pool.query(`
+      UPDATE teams
+      SET teammates = $1, participant_count = $2
+      WHERE invite_code = $3
+      RETURNING *;
+    `, [JSON.stringify(updatedTeammates), updatedTeammates.length, inviteCode]);
+
+    res.json(mapTeamRow(updateRes.rows[0]));
+  } catch (err) {
+    console.error('Error joining team in Supabase:', err);
+    res.status(500).json({ error: 'Failed to join team' });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`🚀 Supabase Database API Server running on port ${PORT}`);
 });
