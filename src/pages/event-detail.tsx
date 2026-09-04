@@ -294,6 +294,43 @@ export default function EventDetail() {
     }
   };
 
+  const [isWithdrawing, setIsWithdrawing] = useState(false);
+
+  const handleWithdrawRegistration = async () => {
+    const email = activeUserEmail || currentUser?.email;
+    if (!email || !rawId) return;
+
+    if (!window.confirm('Are you sure you want to withdraw your registration for this event? This will remove your ticket and team entry.')) {
+      return;
+    }
+
+    setIsWithdrawing(true);
+    try {
+      const res = await fetch('/api/registrations/withdraw', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eventId: rawId, userEmail: email })
+      });
+
+      if (res.ok) {
+        localStorage.removeItem(`techzen_event_submission_${rawId}_user`);
+        localStorage.removeItem(`techzen_team_invite_${rawId}_${teamInviteCode}`);
+        setTeammates([{ id: Date.now(), name: currentUser?.name || '', email, phone: '', college: '', role: 'Team Lead / Admin', customRole: '' }]);
+        setTeamName('');
+        setParticipantCount(1);
+        if (showToast) showToast('🗑️ Registration withdrawn successfully! You can now re-register or join another team.', 'info');
+      } else {
+        const err = await res.json();
+        if (showToast) showToast(`❌ Withdrawal failed: ${err.error}`, 'error');
+      }
+    } catch (e) {
+      console.error(e);
+      if (showToast) showToast('❌ Network error withdrawing registration', 'error');
+    } finally {
+      setIsWithdrawing(false);
+    }
+  };
+
   const [joinCodeInput, setJoinCodeInput] = useState('');
   const [copiedCode, setCopiedCode] = useState(false);
 
@@ -721,6 +758,28 @@ export default function EventDetail() {
                     <ArrowUpRight size={15} />
                   </button>
                 </div>
+              </div>
+
+              {/* Active Registration Status & Withdraw Option */}
+              <div className="border border-rose-900/60 bg-gradient-to-r from-rose-950/40 via-black/80 to-black/60 p-5 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 text-rose-400 font-mono text-xs font-bold uppercase tracking-wider">
+                    <Trash2 size={16} />
+                    <span>Manage Registration / Withdraw Option</span>
+                  </div>
+                  <p className="text-xs text-white/60">
+                    To re-register or join another team for <strong className="text-white">{displayEvent.title}</strong>, you must withdraw your existing registration first.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleWithdrawRegistration}
+                  disabled={isWithdrawing}
+                  className="border border-rose-700/60 bg-rose-950/70 hover:bg-rose-900 text-rose-300 font-mono text-xs font-bold px-5 py-2.5 uppercase tracking-wider transition cursor-pointer shrink-0 flex items-center gap-2 shadow-[0_0_15px_rgba(225,29,72,0.25)]"
+                >
+                  <Trash2 size={14} />
+                  <span>{isWithdrawing ? 'Withdrawing...' : 'Withdraw Registration'}</span>
+                </button>
               </div>
 
               {/* Teammate Invitation Card (When opening a leader's shareable link) */}

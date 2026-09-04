@@ -418,7 +418,17 @@ app.post('/api/teams/join', async (req, res) => {
 
     // Check if user is already in team
     const alreadyMember = updatedTeammates.some(t => t.email && t.email.toLowerCase() === userEmail.toLowerCase());
+    
+    // Guard: Prevent double registration for the same event without withdrawing
     if (!alreadyMember) {
+      const dupCheck = await pool.query(
+        'SELECT id FROM registrations WHERE event_id = $1 AND LOWER(user_email) = $2',
+        [team.eventId, userEmail.toLowerCase()]
+      );
+      if (dupCheck.rows.length > 0) {
+        return res.status(409).json({ error: 'You are already registered for this event! You must withdraw your existing registration first before joining another team.' });
+      }
+
       const emptySlotIndex = updatedTeammates.findIndex((t, idx) => idx > 0 && (!t.email || !t.email.trim()));
       if (emptySlotIndex !== -1) {
         updatedTeammates[emptySlotIndex] = {
@@ -473,6 +483,51 @@ app.post('/api/teams/join', async (req, res) => {
   } catch (err) {
     console.error('Error joining team in Supabase:', err);
     res.status(500).json({ error: 'Failed to join team' });
+  }
+});
+
+// POST /api/registrations/withdraw - WITHDRAW REGISTRATION FOR EVENT
+app.post('/api/registrations/withdraw', async (req, res) => {
+  try {
+    const { eventId, userEmail } = req.body;
+    if (!eventId || !userEmail) {
+      return res.status(400).json({ error: 'eventId and userEmail are required' });
+    }
+
+    const cleanEmail = userEmail.toLowerCase();
+
+    // 1. Delete from registrations table in Supabase
+    await pool.query(
+      'DELETE FROM registrations WHERE event_id = $1 AND LOWER(user_email) = $2',
+      [eventId, cleanEmail]
+    );
+
+    // 2. Remove user from teams roster in Supabase
+    const teamsRes = await pool.query('SELECT * FROM teams WHERE event_id = $1', [eventId]);
+    for (const row of teamsRes.rows) {
+      const t = mapTeamRow(row);
+      if (Array.isArray(t.teammates)) {
+        const filteredTeammates = t.teammates.filter(m => m.email && m.email.toLowerCase() !== cleanEmail);
+        if (filteredTeammates.length !== t.teammates.length) {
+          if (filteredTeammates.length === 0) {
+            await pool.query('DELETE FROM teams WHERE id = $1', [t.id]);
+          } else {
+            await pool.query(
+              'UPDATE teams SET teammates = $1, participant_count = $2 WHERE id = $3',
+              [JSON.stringify(filteredTeammates), filteredTeammates.length, t.id]
+            );
+          }
+        }
+      }
+    }
+
+    // 3. Decrement rsvp_count
+    await pool.query('UPDATE events SET rsvp_count = GREATEST(0, rsvp_count - 1) WHERE id = $1', [eventId]);
+
+    res.json({ success: true, message: 'Registration withdrawn successfully!' });
+  } catch (err) {
+    console.error('Error withdrawing registration:', err);
+    res.status(500).json({ error: 'Failed to withdraw registration' });
   }
 });
 
