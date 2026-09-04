@@ -672,11 +672,14 @@ export default function EventDetail() {
                   </button>
 
                   <button
-                    onClick={handleCopyLink}
-                    className="w-full border border-white/20 bg-white/5 hover:bg-white/10 text-white font-mono text-xs py-2.5 transition flex items-center justify-center gap-2 cursor-pointer"
+                    onClick={() => {
+                      setActiveTab('team');
+                      window.scrollTo({ top: 400, behavior: 'smooth' });
+                    }}
+                    className="w-full border border-sky-500/40 bg-sky-950/40 hover:bg-sky-900/50 text-sky-300 font-mono text-xs py-2.5 transition flex items-center justify-center gap-2 cursor-pointer font-bold"
                   >
-                    {copiedLink ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
-                    <span>{copiedLink ? 'URL Copied!' : 'Share Event Link'}</span>
+                    <Users size={14} />
+                    <span>Join Team via Code</span>
                   </button>
 
                   {effectiveIsAdmin && (
