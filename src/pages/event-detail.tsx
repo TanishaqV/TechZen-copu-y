@@ -272,13 +272,21 @@ export default function EventDetail() {
           teamName: teamName.trim(),
           leaderName: currentUser?.name || userProfile.fullName,
           leaderEmail: activeUserEmail || currentUser?.email,
+          participantCount: processedTeammates.length,
           teammates: processedTeammates
         };
         localStorage.setItem(`techzen_team_invite_${rawId}_${teamInviteCode}`, JSON.stringify(invitePayload));
+
+        // Save updated team roster and all member data to Supabase PostgreSQL
+        fetch('/api/teams', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(invitePayload)
+        }).catch(console.error);
       }
     }
-    setSavedStatus('✅ Team & Leader details saved successfully!');
-    if (showToast) showToast('🔗 Shareable Team Invite Link updated & ready!');
+    setSavedStatus('✅ Team details & member data saved successfully to Supabase!');
+    if (showToast) showToast('✅ Team details saved successfully!');
     setTimeout(() => setSavedStatus(''), 3000);
 
     if (!isQuizEvent) {

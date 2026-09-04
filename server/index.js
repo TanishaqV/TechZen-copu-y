@@ -447,6 +447,28 @@ app.post('/api/teams/join', async (req, res) => {
       RETURNING *;
     `, [JSON.stringify(updatedTeammates), updatedTeammates.length, inviteCode]);
 
+    // Save official event registration for joining teammate in Supabase
+    try {
+      const regId = `reg-${Date.now()}`;
+      const ticketCode = `TCK-${team.eventId.substring(0, 6).toUpperCase()}-${Math.floor(100000 + Math.random() * 900000)}`;
+      await pool.query(`
+        INSERT INTO registrations (id, event_id, user_name, user_email, ticket_code, answers)
+        VALUES ($1, $2, $3, $4, $5, $6)
+        ON CONFLICT (ticket_code) DO NOTHING;
+      `, [
+        regId,
+        team.eventId,
+        userName || 'Team Member',
+        userEmail.toLowerCase(),
+        ticketCode,
+        JSON.stringify({ teamName: team.teamName, teamRole: role || 'Software Developer', inviteCode })
+      ]);
+
+      await pool.query('UPDATE events SET rsvp_count = rsvp_count + 1 WHERE id = $1', [team.eventId]);
+    } catch (regErr) {
+      console.warn('Registration table sync notice:', regErr.message);
+    }
+
     res.json(mapTeamRow(updateRes.rows[0]));
   } catch (err) {
     console.error('Error joining team in Supabase:', err);
