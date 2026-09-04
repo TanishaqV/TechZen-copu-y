@@ -114,47 +114,8 @@ export default function EventDetail() {
   const [incomingInvite, setIncomingInvite] = useState<{ inviteCode: string; teamName: string; leaderName: string; leaderEmail: string } | null>(null);
 
   useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const inviteParam = urlParams.get('teamInvite');
-
-    // 1. Check if user opened a shareable Team Invite link (Fetch from Supabase database)
-    if (rawId && inviteParam) {
-      setActiveTab('team');
-      setTeamInviteCode(inviteParam);
-
-      fetch(`/api/teams/${inviteParam}`)
-        .then(res => res.ok ? res.json() : null)
-        .then(data => {
-          if (data) {
-            setIncomingInvite(data);
-            if (data.teamName) setTeamName(data.teamName);
-            if (data.participantCount) setParticipantCount(data.participantCount);
-            if (data.teammates && data.teammates.length > 0) setTeammates(data.teammates);
-          } else {
-            const fallback = localStorage.getItem(`techzen_team_invite_${rawId}_${inviteParam}`);
-            if (fallback) {
-              const parsed = JSON.parse(fallback);
-              setIncomingInvite(parsed);
-              if (parsed.teamName) setTeamName(parsed.teamName);
-              if (parsed.participantCount) setParticipantCount(parsed.participantCount);
-              if (parsed.teammates) setTeammates(parsed.teammates);
-            }
-          }
-        })
-        .catch(() => {
-          const fallback = localStorage.getItem(`techzen_team_invite_${rawId}_${inviteParam}`);
-          if (fallback) {
-            try {
-              const parsed = JSON.parse(fallback);
-              setIncomingInvite(parsed);
-              if (parsed.teamName) setTeamName(parsed.teamName);
-              if (parsed.participantCount) setParticipantCount(parsed.participantCount);
-              if (parsed.teammates) setTeammates(parsed.teammates);
-            } catch (e) {}
-          }
-        });
-    } else if (rawId && (currentUser || clerkUser)) {
-      // 2. Normal Leader View: Set Member #1 to Logged-In User
+    if (rawId && (currentUser || clerkUser)) {
+      // Set Member #1 to Logged-In User
       const name = currentUser?.name || [clerkUser?.firstName, clerkUser?.lastName].filter(Boolean).join(' ') || 'TechZen Builder';
       const email = activeUserEmail;
       setUserProfile((prev) => ({ ...prev, fullName: prev.fullName || name, email: prev.email || email }));
@@ -166,13 +127,9 @@ export default function EventDetail() {
     }
   }, [currentUser, clerkUser, activeUserEmail, rawId]);
 
-  // Auto-persist shareable team invite record to Supabase database for Team Leader
+  // Auto-persist unique team code record to Supabase database for Team Leader
   useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const inviteParam = urlParams.get('teamInvite');
-
-    // Only auto-persist if current user IS the Team Leader (i.e. NO inviteParam in URL or inviteParam matches leader's code)
-    if (rawId && teamInviteCode && (!inviteParam || inviteParam === teamInviteCode) && (currentUser || clerkUser)) {
+    if (rawId && teamInviteCode && (currentUser || clerkUser)) {
       const leaderName = currentUser?.name || userProfile.fullName || 'Team Leader';
       const leaderEmail = activeUserEmail || currentUser?.email || '';
       const finalTeamName = teamName.trim() || `${leaderName}'s Team`;
@@ -786,53 +743,37 @@ export default function EventDetail() {
                 </div>
               )}
 
-              {/* Option B: Unique Leader Team Code & Shareable Link Box */}
+              {/* Unique Leader Team Code Card */}
               {teamInviteCode && (
                 <div className="border border-[#ef2635]/40 bg-gradient-to-r from-[#ef2635]/15 via-black/80 to-black/60 p-6 rounded-xl space-y-4">
                   <div className="flex items-center justify-between border-b border-white/10 pb-3">
                     <div className="flex items-center gap-2 text-[#ef2635] font-mono text-xs font-bold uppercase tracking-wider">
                       <ShieldCheck size={16} />
-                      <span>Team Leader Unique Code & Invite Link</span>
+                      <span>Your Unique Team Code (Give to Teammates)</span>
                     </div>
                     <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950/70 border border-emerald-800/60 px-2.5 py-1 font-bold uppercase">
                       Leader Code
                     </span>
                   </div>
 
+                  <p className="text-xs text-white/70 font-sans">
+                    Give this unique code to your teammates so they can enter it and join <strong className="text-white">{teamName || 'your team'}</strong>!
+                  </p>
+
                   {/* Big Unique Code Banner */}
                   <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-black/90 border border-[#ef2635]/50 p-4 rounded-lg">
                     <div>
-                      <span className="text-[10px] text-white/50 uppercase font-mono tracking-wider block">Your Unique Team Code:</span>
+                      <span className="text-[10px] text-white/50 uppercase font-mono tracking-wider block">Unique Team Code:</span>
                       <span className="text-xl font-extrabold text-[#ff4c59] font-mono tracking-widest">{teamInviteCode}</span>
                     </div>
                     <button
                       type="button"
                       onClick={handleCopyTeamCode}
-                      className="bg-[#ef2635] hover:bg-[#ff3d4b] text-white font-mono text-xs font-bold px-5 py-2.5 uppercase tracking-wider transition cursor-pointer flex items-center gap-1.5 shadow-[0_0_15px_rgba(239,38,53,0.3)] shrink-0"
+                      className="bg-[#ef2635] hover:bg-[#ff3d4b] text-white font-mono text-xs font-bold px-6 py-2.5 uppercase tracking-wider transition cursor-pointer flex items-center gap-1.5 shadow-[0_0_15px_rgba(239,38,53,0.3)] shrink-0"
                     >
                       {copiedCode ? <Check size={14} /> : <Copy size={14} />}
                       <span>{copiedCode ? 'Code Copied!' : 'Copy Team Code'}</span>
                     </button>
-                  </div>
-
-                  <div className="space-y-1 pt-1">
-                    <span className="text-[11px] text-white/60 font-sans block">Or share direct URL link with teammates:</span>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="text"
-                        readOnly
-                        value={`${window.location.origin}/events/${rawId}?teamInvite=${teamInviteCode}`}
-                        className="w-full bg-black/80 border border-white/15 px-3.5 py-2 text-xs font-mono text-white/80 select-all outline-none"
-                      />
-                      <button
-                        type="button"
-                        onClick={handleCopyInviteLink}
-                        className="border border-white/20 hover:border-white text-white font-mono text-xs font-bold px-4 py-2 uppercase tracking-wider shrink-0 transition cursor-pointer flex items-center gap-1.5"
-                      >
-                        {copiedInviteLink ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
-                        <span>{copiedInviteLink ? 'Link Copied!' : 'Copy Link'}</span>
-                      </button>
-                    </div>
                   </div>
                 </div>
               )}
