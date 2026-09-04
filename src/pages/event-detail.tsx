@@ -954,24 +954,26 @@ export default function EventDetail() {
                           <div>
                             <label className="block text-white/70 mb-1 font-semibold flex items-center justify-between">
                               <span>Full Name *</span>
-                              {isLead && <span className="text-[10px] text-[#ef2635] font-normal font-mono">🔒 Locked to Leader</span>}
+                              {isLead ? (
+                                <span className="text-[10px] text-[#ef2635] font-normal font-mono">🔒 Locked to Leader</span>
+                              ) : !member.email ? (
+                                <span className="text-[10px] text-sky-400 font-normal font-mono">🔒 Must Join via Code</span>
+                              ) : (
+                                <span className="text-[10px] text-emerald-400 font-normal font-mono">✅ Joined Member</span>
+                              )}
                             </label>
                             <input
                               type="text"
                               required
-                              readOnly={isLead}
+                              readOnly
                               value={member.name || (isLead ? (currentUser?.name || userProfile.fullName) : '')}
-                              onChange={(e) => {
-                                if (isLead) return;
-                                const val = e.target.value;
-                                setTeammates((prev) => prev.map((t) => (t.id === member.id ? { ...t, name: val } : t)));
-                                setValidationError('');
-                              }}
-                              placeholder={isLead ? 'Team Leader Name' : 'Member Full Name'}
+                              placeholder={isLead ? 'Team Leader Name' : '🔒 Must Join via Unique Team Code'}
                               className={`w-full px-3 py-2 outline-none ${
                                 isLead 
                                   ? 'bg-[#18181f] border border-[#ef2635]/40 text-white font-bold cursor-not-allowed' 
-                                  : 'bg-[#111] border border-white/15 text-white focus:border-[#ef2635]'
+                                  : member.email
+                                    ? 'bg-[#121c17] border border-emerald-500/40 text-white font-bold'
+                                    : 'bg-[#16161a] border border-white/10 text-white/40 cursor-not-allowed placeholder-white/30'
                               }`}
                             />
                           </div>
@@ -979,24 +981,26 @@ export default function EventDetail() {
                           <div>
                             <label className="block text-white/70 mb-1 font-semibold flex items-center justify-between">
                               <span>Email Address *</span>
-                              {isLead && <span className="text-[10px] text-[#ef2635] font-normal font-mono">🔒 Verified Email</span>}
+                              {isLead ? (
+                                <span className="text-[10px] text-[#ef2635] font-normal font-mono">🔒 Verified Email</span>
+                              ) : !member.email ? (
+                                <span className="text-[10px] text-sky-400 font-normal font-mono">🔒 Must Join via Code</span>
+                              ) : (
+                                <span className="text-[10px] text-emerald-400 font-normal font-mono">✅ Verified Member</span>
+                              )}
                             </label>
                             <input
                               type="email"
                               required
-                              readOnly={isLead}
+                              readOnly
                               value={member.email || (isLead ? (activeUserEmail || currentUser?.email || userProfile.email) : '')}
-                              onChange={(e) => {
-                                if (isLead) return;
-                                const val = e.target.value;
-                                setTeammates((prev) => prev.map((t) => (t.id === member.id ? { ...t, email: val } : t)));
-                                setValidationError('');
-                              }}
-                              placeholder={isLead ? 'leader@gmail.com' : 'member@gmail.com'}
+                              placeholder={isLead ? 'leader@gmail.com' : '🔒 Must Join via Unique Team Code'}
                               className={`w-full px-3 py-2 outline-none ${
                                 isLead 
                                   ? 'bg-[#18181f] border border-[#ef2635]/40 text-white font-bold cursor-not-allowed' 
-                                  : 'bg-[#111] border border-white/15 text-white focus:border-[#ef2635]'
+                                  : member.email
+                                    ? 'bg-[#121c17] border border-emerald-500/40 text-white font-bold'
+                                    : 'bg-[#16161a] border border-white/10 text-white/40 cursor-not-allowed placeholder-white/30'
                               }`}
                             />
                           </div>
