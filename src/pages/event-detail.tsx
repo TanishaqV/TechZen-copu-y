@@ -340,6 +340,15 @@ export default function EventDetail() {
     setTimeout(() => setCopiedCode(false), 3000);
   };
 
+  const handleCopyInviteLink = () => {
+    if (!teamInviteCode) return;
+    const inviteUrl = `${window.location.origin}/events/${rawId}?teamInvite=${teamInviteCode}`;
+    navigator.clipboard.writeText(inviteUrl);
+    setCopiedInviteLink(true);
+    if (showToast) showToast('🔗 Unique Team Invite Link copied to clipboard!');
+    setTimeout(() => setCopiedInviteLink(false), 3000);
+  };
+
   const handleJoinByCodeSubmit = async () => {
     const code = joinCodeInput.trim().toUpperCase();
     if (!code) {
