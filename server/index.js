@@ -472,6 +472,59 @@ app.get('/api/teams/:inviteCode', async (req, res) => {
   }
 });
 
+// POST /api/teams/update-member - UPDATE MEMBER NAME, COLLEGE, ROLE (EMAIL FIXED) IN SUPABASE
+app.post('/api/teams/update-member', async (req, res) => {
+  try {
+    const { inviteCode, memberEmail, name, college, role } = req.body;
+    if (!inviteCode || !memberEmail) {
+      return res.status(400).json({ error: 'inviteCode and memberEmail are required' });
+    }
+
+    const { rows } = await pool.query('SELECT * FROM teams WHERE invite_code = $1', [inviteCode]);
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'Team not found' });
+    }
+
+    const team = mapTeamRow(rows[0]);
+    let updatedTeammates = [...team.teammates];
+    const cleanEmail = memberEmail.toLowerCase().trim();
+
+    let updated = false;
+    updatedTeammates = updatedTeammates.map((m, idx) => {
+      const isLeaderSlot = (idx === 0) && (cleanEmail === (team.leaderEmail || '').toLowerCase().trim() || !m.email);
+      const isMatchingEmail = m.email && m.email.toLowerCase().trim() === cleanEmail;
+
+      if (isLeaderSlot || isMatchingEmail) {
+        updated = true;
+        return {
+          ...m,
+          email: m.email || cleanEmail,
+          name: name !== undefined ? name : m.name,
+          college: college !== undefined ? college : m.college,
+          role: role !== undefined ? role : m.role
+        };
+      }
+      return m;
+    });
+
+    if (!updated) {
+      return res.status(404).json({ error: 'Member not found in team' });
+    }
+
+    const updateRes = await pool.query(`
+      UPDATE teams
+      SET teammates = $1
+      WHERE invite_code = $2
+      RETURNING *;
+    `, [JSON.stringify(updatedTeammates), inviteCode]);
+
+    res.json(mapTeamRow(updateRes.rows[0]));
+  } catch (err) {
+    console.error('Error updating team member in Supabase:', err);
+    res.status(500).json({ error: 'Failed to update member in database' });
+  }
+});
+
 // POST /api/teams/join - TEAMMATE JOINS TEAM IN SUPABASE
 app.post('/api/teams/join', async (req, res) => {
   try {

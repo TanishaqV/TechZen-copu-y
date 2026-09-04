@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowUpRight, CalendarDays, Check, Code, Copy, FileText, MapPin, Plus, Send, ShieldCheck, Trash2, Upload, User, Users, GraduationCap, Link as LinkIcon } from 'lucide-react';
+import { ArrowLeft, ArrowUpRight, CalendarDays, Check, Code, Copy, FileText, MapPin, Plus, Save, Send, ShieldCheck, Trash2, Upload, User, Users, GraduationCap, Link as LinkIcon } from 'lucide-react';
 import { useEffect, useState, useMemo, type FormEvent, type ChangeEvent } from 'react';
 import { Link, useParams, useLocation } from 'wouter';
 import { useSafeUser as useUser } from '@/lib/clerk-safe';
@@ -349,6 +349,47 @@ export default function EventDetail() {
       if (showToast) showToast('❌ Network error withdrawing registration', 'error');
     } finally {
       setIsWithdrawing(false);
+    }
+  };
+
+  const handleUpdateMemberInDatabase = async (memberToUpdate: Teammate) => {
+    const isLead = memberToUpdate.id === teammates[0]?.id;
+    const email = memberToUpdate.email || (isLead ? (activeUserEmail || currentUser?.email || userProfile.email) : '');
+    if (!email || !teamInviteCode) {
+      if (showToast) showToast('⚠️ Member email and Team Code are required to update database', 'error');
+      return;
+    }
+
+    const finalRole = memberToUpdate.role === 'Others (Type Custom Role)'
+      ? (memberToUpdate.customRole || 'Teammate')
+      : (memberToUpdate.role || (isLead ? 'Team Lead / Admin' : 'Teammate'));
+
+    const finalName = memberToUpdate.name || (isLead ? (currentUser?.name || userProfile.fullName) : '');
+
+    try {
+      const res = await fetch('/api/teams/update-member', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          inviteCode: teamInviteCode,
+          memberEmail: email,
+          name: finalName,
+          college: memberToUpdate.college || '',
+          role: finalRole
+        })
+      });
+
+      if (res.ok) {
+        const updatedTeam = await res.json();
+        setTeammates(updatedTeam.teammates);
+        if (showToast) showToast(`✅ Updated ${finalName || 'Member'}'s profile & task in Supabase database!`);
+      } else {
+        const err = await res.json();
+        if (showToast) showToast(`❌ Update failed: ${err.error}`, 'error');
+      }
+    } catch (e) {
+      console.error('Update error:', e);
+      if (showToast) showToast('❌ Network error updating member in database', 'error');
     }
   };
 
@@ -929,6 +970,7 @@ export default function EventDetail() {
                 <div className="space-y-6">
                   {teammates.map((member, index) => {
                     const isLead = index === 0;
+                    const canEdit = isLead || !!member.email;
 
                     return (
                       <div
@@ -937,7 +979,7 @@ export default function EventDetail() {
                           isLead ? 'bg-[#1a1214] border-[#ef2635]/50' : 'bg-black/40 border-white/10'
                         }`}
                       >
-                        <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                        <div className="flex items-center justify-between border-b border-white/10 pb-3 flex-wrap gap-2">
                           <div className="flex items-center gap-2 font-mono text-xs">
                             <span className={`px-2.5 py-1 rounded font-bold uppercase ${
                               isLead ? 'bg-[#ef2635] text-white' : 'bg-white/10 text-white/70'
@@ -945,17 +987,32 @@ export default function EventDetail() {
                               {isLead ? '⭐ MEMBER #1 — TEAM LEADER / ADMIN' : `MEMBER #${index + 1}`}
                             </span>
                           </div>
-                          <span className="font-mono text-[11px] text-white/40">
-                            {isLead ? 'Primary Event Contact' : 'Teammate'}
-                          </span>
+
+                          <div className="flex items-center gap-3">
+                            {canEdit && (
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateMemberInDatabase(member)}
+                                className="bg-emerald-600 hover:bg-emerald-500 text-white font-mono text-[11px] font-bold px-3 py-1.5 rounded uppercase tracking-wider transition cursor-pointer flex items-center gap-1.5 shrink-0 shadow-[0_0_12px_rgba(16,185,129,0.35)]"
+                                title="Update name, college, or task in database"
+                              >
+                                <Save size={13} />
+                                <span>UPDATE</span>
+                              </button>
+                            )}
+                            <span className="font-mono text-[11px] text-white/40">
+                              {isLead ? 'Primary Event Contact' : (member.email ? 'Teammate (Joined)' : 'Slot Pending Code')}
+                            </span>
+                          </div>
                         </div>
 
                         <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 font-mono text-xs">
+                          {/* Full Name - Editable for Leader and Joined Members */}
                           <div>
                             <label className="block text-white/70 mb-1 font-semibold flex items-center justify-between">
                               <span>Full Name *</span>
                               {isLead ? (
-                                <span className="text-[10px] text-[#ef2635] font-normal font-mono">🔒 Locked to Leader</span>
+                                <span className="text-[10px] text-[#ef2635] font-normal font-mono">⭐ Leader</span>
                               ) : !member.email ? (
                                 <span className="text-[10px] text-sky-400 font-normal font-mono">🔒 Must Join via Code</span>
                               ) : (
@@ -965,29 +1022,28 @@ export default function EventDetail() {
                             <input
                               type="text"
                               required
-                              readOnly
+                              readOnly={!canEdit}
                               value={member.name || (isLead ? (currentUser?.name || userProfile.fullName) : '')}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setTeammates((prev) => prev.map((t) => (t.id === member.id ? { ...t, name: val } : t)));
+                                if (isLead) setUserProfile((p) => ({ ...p, fullName: val }));
+                                setValidationError('');
+                              }}
                               placeholder={isLead ? 'Team Leader Name' : '🔒 Must Join via Unique Team Code'}
                               className={`w-full px-3 py-2 outline-none ${
-                                isLead 
-                                  ? 'bg-[#18181f] border border-[#ef2635]/40 text-white font-bold cursor-not-allowed' 
-                                  : member.email
-                                    ? 'bg-[#121c17] border border-emerald-500/40 text-white font-bold'
-                                    : 'bg-[#16161a] border border-white/10 text-white/40 cursor-not-allowed placeholder-white/30'
+                                !canEdit
+                                  ? 'bg-[#16161a] border border-white/10 text-white/40 cursor-not-allowed placeholder-white/30'
+                                  : 'bg-[#111] border border-white/15 text-white focus:border-[#ef2635]'
                               }`}
                             />
                           </div>
 
+                          {/* Email Address - Fixed (readOnly) */}
                           <div>
                             <label className="block text-white/70 mb-1 font-semibold flex items-center justify-between">
                               <span>Email Address *</span>
-                              {isLead ? (
-                                <span className="text-[10px] text-[#ef2635] font-normal font-mono">🔒 Verified Email</span>
-                              ) : !member.email ? (
-                                <span className="text-[10px] text-sky-400 font-normal font-mono">🔒 Must Join via Code</span>
-                              ) : (
-                                <span className="text-[10px] text-emerald-400 font-normal font-mono">✅ Verified Member</span>
-                              )}
+                              <span className="text-[10px] text-amber-400 font-normal font-mono">🔒 Fixed Email</span>
                             </label>
                             <input
                               type="email"
@@ -995,17 +1051,11 @@ export default function EventDetail() {
                               readOnly
                               value={member.email || (isLead ? (activeUserEmail || currentUser?.email || userProfile.email) : '')}
                               placeholder={isLead ? 'leader@gmail.com' : '🔒 Must Join via Unique Team Code'}
-                              className={`w-full px-3 py-2 outline-none ${
-                                isLead 
-                                  ? 'bg-[#18181f] border border-[#ef2635]/40 text-white font-bold cursor-not-allowed' 
-                                  : member.email
-                                    ? 'bg-[#121c17] border border-emerald-500/40 text-white font-bold'
-                                    : 'bg-[#16161a] border border-white/10 text-white/40 cursor-not-allowed placeholder-white/30'
-                              }`}
+                              className="w-full px-3 py-2 outline-none bg-[#18181f] border border-white/10 text-white/60 font-mono cursor-not-allowed"
                             />
                           </div>
 
-                          {/* College Name compulsory per member */}
+                          {/* College Name - Editable for Leader & Members */}
                           <div>
                             <label className="block text-white/70 mb-1 font-semibold flex items-center gap-1">
                               <GraduationCap size={13} className="text-[#ef2635]" />
@@ -1014,6 +1064,7 @@ export default function EventDetail() {
                             <input
                               type="text"
                               required
+                              readOnly={!canEdit}
                               value={member.college || ''}
                               onChange={(e) => {
                                 const val = e.target.value;
@@ -1022,23 +1073,28 @@ export default function EventDetail() {
                                 setValidationError('');
                               }}
                               placeholder="College Name"
-                              className="w-full bg-[#111] border border-white/15 px-3 py-2 text-white outline-none focus:border-[#ef2635]"
+                              className={`w-full px-3 py-2 outline-none ${
+                                !canEdit
+                                  ? 'bg-[#16161a] border border-white/10 text-white/40 cursor-not-allowed placeholder-white/30'
+                                  : 'bg-[#111] border border-white/15 text-white focus:border-[#ef2635]'
+                              }`}
                             />
                           </div>
 
+                          {/* Task / Role in Team - Editable for Leader & Members */}
                           <div>
-                            <label className="block text-white/70 mb-1 font-semibold">Role in Team *</label>
-                            {isLead ? (
+                            <label className="block text-white/70 mb-1 font-semibold">Role in Team / Task *</label>
+                            {!canEdit ? (
                               <input
                                 type="text"
                                 readOnly
-                                value="Team Lead / Admin"
-                                className="w-full bg-[#18181f] border border-[#ef2635]/50 px-3 py-2 text-[#ef2635] font-bold cursor-not-allowed"
+                                value="🔒 Must Join via Code"
+                                className="w-full bg-[#16161a] border border-white/10 px-3 py-2 text-white/40 cursor-not-allowed"
                               />
                             ) : (
                               <div className="space-y-2">
                                 <select
-                                  value={member.role || ''}
+                                  value={member.role || (isLead ? 'Team Lead / Admin' : '')}
                                   onChange={(e) => {
                                     const val = e.target.value;
                                     setTeammates((prev) => prev.map((t) => (t.id === member.id ? { ...t, role: val } : t)));
@@ -1046,6 +1102,7 @@ export default function EventDetail() {
                                   }}
                                   className="w-full bg-[#111] border border-white/15 px-3 py-2 text-white outline-none focus:border-[#ef2635]"
                                 >
+                                  {isLead && <option value="Team Lead / Admin">Team Lead / Admin</option>}
                                   {TEAMMATE_ROLE_OPTIONS.map((r) => (
                                     <option key={r} value={r === '-- Select Role --' ? '' : r}>{r}</option>
                                   ))}
@@ -1062,7 +1119,7 @@ export default function EventDetail() {
                                       setTeammates((prev) => prev.map((t) => (t.id === member.id ? { ...t, customRole: customVal } : t)));
                                       setValidationError('');
                                     }}
-                                    placeholder="Type your role (e.g. Data Scientist, DevOps)"
+                                    placeholder="Type your role / task (e.g. Data Scientist, DevOps)"
                                     className="w-full bg-black/80 border border-[#ef2635]/60 px-3 py-1.5 text-white text-xs outline-none focus:border-[#ef2635]"
                                   />
                                 )}
