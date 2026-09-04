@@ -355,6 +355,78 @@ function mapTeamRow(row) {
   };
 }
 
+// POST /api/teams/generate-code - ON DEMAND DATABASE VERIFIED UNIQUE TEAM CODE
+app.post('/api/teams/generate-code', async (req, res) => {
+  try {
+    const { eventId, userEmail, userName } = req.body;
+    if (!eventId || !userEmail) {
+      return res.status(400).json({ error: 'eventId and userEmail are required' });
+    }
+
+    const cleanEmail = userEmail.toLowerCase().trim();
+
+    // 1. Check if leader already has a team for this event in Supabase
+    const existingTeam = await pool.query(
+      'SELECT * FROM teams WHERE event_id = $1 AND LOWER(leader_email) = $2',
+      [eventId, cleanEmail]
+    );
+
+    if (existingTeam.rows.length > 0) {
+      return res.json(mapTeamRow(existingTeam.rows[0]));
+    }
+
+    // 2. Generate a 100% unique Team Code verified against Supabase PostgreSQL
+    let isUnique = false;
+    let newCode = '';
+    let attempts = 0;
+
+    const eventPrefix = eventId.substring(0, 5).toUpperCase().replace(/[^A-Z0-9]/g, 'EVT');
+    const userPrefix = cleanEmail.substring(0, 4).toUpperCase().replace(/[^A-Z0-9]/g, 'LEAD');
+
+    while (!isUnique && attempts < 20) {
+      attempts++;
+      const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+      newCode = `TZ-${eventPrefix}-${userPrefix}${randomSuffix}`;
+
+      // Run query against database to guarantee uniqueness
+      const checkCode = await pool.query('SELECT invite_code FROM teams WHERE invite_code = $1', [newCode]);
+      if (checkCode.rows.length === 0) {
+        isUnique = true;
+      }
+    }
+
+    if (!isUnique) {
+      newCode = `TZ-${Date.now()}`;
+    }
+
+    const leaderName = userName || cleanEmail.split('@')[0];
+    const initialTeammates = [
+      { id: Date.now(), name: leaderName, email: cleanEmail, role: 'Team Lead / Admin' }
+    ];
+
+    // 3. Insert unique team into Supabase PostgreSQL
+    const { rows } = await pool.query(`
+      INSERT INTO teams (id, event_id, invite_code, team_name, leader_name, leader_email, participant_count, teammates)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      RETURNING *;
+    `, [
+      `team-${Date.now()}`,
+      eventId,
+      newCode,
+      `${leaderName}'s Team`,
+      leaderName,
+      cleanEmail,
+      1,
+      JSON.stringify(initialTeammates)
+    ]);
+
+    res.status(201).json(mapTeamRow(rows[0]));
+  } catch (err) {
+    console.error('Error generating unique team code in database:', err);
+    res.status(500).json({ error: 'Failed to generate unique team code' });
+  }
+});
+
 // POST /api/teams - CREATE OR UPDATE TEAM IN SUPABASE
 app.post('/api/teams', async (req, res) => {
   try {

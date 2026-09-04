@@ -115,15 +115,36 @@ export default function EventDetail() {
 
   useEffect(() => {
     if (rawId && (currentUser || clerkUser)) {
-      // Set Member #1 to Logged-In User
       const name = currentUser?.name || [clerkUser?.firstName, clerkUser?.lastName].filter(Boolean).join(' ') || 'TechZen Builder';
       const email = activeUserEmail;
       setUserProfile((prev) => ({ ...prev, fullName: prev.fullName || name, email: prev.email || email }));
       setTeammates((prev) => prev.map((t, idx) => (idx === 0 ? { ...t, name: name, email: email } : t)));
 
-      const cleanEmail = (email || 'leader').toLowerCase().replace(/[^a-z0-9]/g, '');
-      const defaultCode = `TEAM-${rawId.substring(0, 6).toUpperCase()}-${cleanEmail.substring(0, 6).toUpperCase()}`;
-      setTeamInviteCode((existing) => existing || defaultCode);
+      // Request On-Demand Unique Team Code verified against Supabase PostgreSQL database
+      fetch('/api/teams/generate-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          eventId: rawId,
+          userEmail: email,
+          userName: name
+        })
+      })
+        .then(res => res.ok ? res.json() : null)
+        .then(data => {
+          if (data && data.inviteCode) {
+            setTeamInviteCode(data.inviteCode);
+            if (data.teamName) setTeamName(data.teamName);
+            if (data.participantCount) setParticipantCount(data.participantCount);
+            if (data.teammates && data.teammates.length > 0) setTeammates(data.teammates);
+          }
+        })
+        .catch((e) => {
+          console.error('Database unique code generation error:', e);
+          const cleanEmail = (email || 'leader').toLowerCase().replace(/[^a-z0-9]/g, '');
+          const fallbackCode = `TZ-${rawId.substring(0, 5).toUpperCase()}-${cleanEmail.substring(0, 4).toUpperCase()}${Math.floor(1000 + Math.random() * 9000)}`;
+          setTeamInviteCode((existing) => existing || fallbackCode);
+        });
     }
   }, [currentUser, clerkUser, activeUserEmail, rawId]);
 
