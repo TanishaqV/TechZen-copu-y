@@ -77,11 +77,11 @@ const clerkAppearance = {
 };
 
 function SignInPage() {
-  return <div className="grid min-h-[100dvh] place-items-center bg-[#0b0b0b] px-4 py-10"><SignIn routing="path" path={`${basePath}/sign-in`} signUpUrl={`${basePath}/sign-up`} /></div>;
+  return <div className="grid min-h-[100dvh] place-items-center bg-[#000000] px-4 py-10"><SignIn routing="path" path={`${basePath}/sign-in`} signUpUrl={`${basePath}/sign-up`} /></div>;
 }
 
 function SignUpPage() {
-  return <div className="grid min-h-[100dvh] place-items-center bg-[#0b0b0b] px-4 py-10"><SignUp routing="path" path={`${basePath}/sign-up`} signInUrl={`${basePath}/sign-in`} /></div>;
+  return <div className="grid min-h-[100dvh] place-items-center bg-[#000000] px-4 py-10"><SignUp routing="path" path={`${basePath}/sign-up`} signInUrl={`${basePath}/sign-in`} /></div>;
 }
 
 function HomeRedirect() {
@@ -91,7 +91,7 @@ function HomeRedirect() {
 }
 
 function LoadingFrame() {
-  return <div className="min-h-[100dvh] bg-[#0b0b0b] p-8"><div className="h-2 w-24 animate-pulse bg-[#ef2635]/40" /></div>;
+  return <div className="min-h-[100dvh] bg-[#000000] p-8"><div className="h-2 w-24 animate-pulse bg-[#ef2635]/40" /></div>;
 }
 
 function ClerkQueryClientCacheInvalidator() {

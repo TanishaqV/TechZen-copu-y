@@ -42,9 +42,9 @@ export default function AllEvents() {
 
   return (
     <SiteShell>
-      <main className="min-h-screen bg-[#0b0b0b] text-white">
+      <main className="min-h-screen bg-[#000000] text-white">
         {/* Header Banner */}
-        <section className="relative overflow-hidden border-b border-white/10 bg-[#111115] py-16 px-5 sm:px-8 lg:px-12">
+        <section className="relative overflow-hidden border-b border-white/10 bg-[#050505] py-16 px-5 sm:px-8 lg:px-12">
           <div className="absolute inset-0 grid-paper opacity-40" />
           <div className="absolute -right-10 top-0 h-64 w-64 rounded-full bg-[#ef2635]/10 blur-3xl" />
           

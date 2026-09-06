@@ -29,14 +29,14 @@ export function EventCard({ event, featured = false }: { event: any; featured?: 
     <Link
       href={`/events/${event.id}`}
       data-testid={`card-event-${event.id}`}
-      className={`group focus-ring relative block overflow-hidden border border-white/10 bg-[#111] transition-all duration-500 hover:-translate-y-1 hover:border-[#ef2635]/70 ${
+      className={`group focus-ring relative block overflow-hidden border border-white/10 bg-[#0a0a0a] transition-all duration-500 hover:-translate-y-1 hover:border-[#ef2635]/70 ${
         featured ? 'md:col-span-2 md:grid md:grid-cols-[1.1fr_.9fr]' : ''
       }`}
     >
       {/* 30-Degree Inclined 'EVENT ENDED' Rectangular Stamp */}
       {isEnded && (
         <div className="absolute inset-0 z-30 pointer-events-none flex items-center justify-center overflow-hidden">
-          <div className="transform -rotate-[30deg] border-2 border-[#ef2635] bg-[#0b0b0b]/92 px-8 py-2.5 text-center shadow-[0_0_25px_rgba(239,38,53,0.6)] backdrop-blur-md">
+          <div className="transform -rotate-[30deg] border-2 border-[#ef2635] bg-[#000000]/92 px-8 py-2.5 text-center shadow-[0_0_25px_rgba(239,38,53,0.6)] backdrop-blur-md">
             <span className="font-mono text-xs sm:text-sm font-black tracking-[0.25em] text-[#ef2635] uppercase drop-shadow-md">
               EVENT ENDED
             </span>
@@ -44,7 +44,7 @@ export function EventCard({ event, featured = false }: { event: any; featured?: 
         </div>
       )}
 
-      <div className={`relative overflow-hidden bg-[#191919] ${featured ? 'min-h-[280px] md:min-h-full' : 'aspect-[16/10]'}`}>
+      <div className={`relative overflow-hidden bg-[#050505] ${featured ? 'min-h-[280px] md:min-h-full' : 'aspect-[16/10]'}`}>
         {event.imageUrl || event.coverImage ? (
           <img
             src={event.imageUrl || event.coverImage}
@@ -108,7 +108,7 @@ export function EventCard({ event, featured = false }: { event: any; featured?: 
 
 export function EventSkeleton({ index }: { index: number }) {
   return (
-    <div className="animate-pulse border border-white/10 bg-[#111]" style={{ animationDelay: `${index * 80}ms` }}>
+    <div className="animate-pulse border border-white/10 bg-[#0a0a0a]" style={{ animationDelay: `${index * 80}ms` }}>
       <div className="aspect-[16/10] bg-white/[.06]" />
       <div className="space-y-3 p-5">
         <div className="h-2 w-20 bg-white/[.08]" />

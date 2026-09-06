@@ -164,7 +164,7 @@ export default function Home() {
           </div>
         </section>
 
-        <section id="events" className="border-y border-white/10 bg-[#0b0b0b]">
+        <section id="events" className="border-y border-white/10 bg-[#000000]">
           <div className="mx-auto max-w-[1440px] px-5 py-20 sm:px-8 md:py-28 lg:px-12">
             <div className="flex flex-col justify-between gap-8 md:flex-row md:items-end">
               <div>

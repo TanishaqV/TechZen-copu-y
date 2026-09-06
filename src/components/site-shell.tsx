@@ -41,10 +41,10 @@ export function SiteShell({ children }: SiteShellProps) {
   };
 
   return (
-    <div className="min-h-screen bg-[#0b0b0b] text-white selection:bg-[#ef2635] selection:text-white font-sans">
+    <div className="min-h-screen bg-[#000000] text-white selection:bg-[#ef2635] selection:text-white font-sans">
       
       {/* Top Main Navigation Header */}
-      <header className="sticky top-0 z-40 border-b border-white/10 bg-[#0b0b0b]/90 backdrop-blur-md">
+      <header className="sticky top-0 z-40 border-b border-white/10 bg-[#000000]/90 backdrop-blur-md">
         <div className="mx-auto flex max-w-[1440px] items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
           
           {/* Left: Brand Logo */}
@@ -184,7 +184,7 @@ export function SiteShell({ children }: SiteShellProps) {
 
         {/* Mobile Dropdown Drawer */}
         {menuOpen && (
-          <div className="border-t border-white/10 bg-[#0b0b0b] px-5 py-5 md:hidden space-y-4">
+          <div className="border-t border-white/10 bg-[#000000] px-5 py-5 md:hidden space-y-4">
             <nav className="flex flex-col gap-4">
               <Link href="/" onClick={() => setMenuOpen(false)} className="text-left text-lg text-white/80">Home</Link>
               <button onClick={() => { scrollToSection('manifesto'); setMenuOpen(false); }} className="text-left text-lg text-white/80">Our Manifesto</button>
@@ -220,7 +220,7 @@ export function SiteShell({ children }: SiteShellProps) {
       {children}
 
       {/* Footer */}
-      <footer className="border-t border-white/10 bg-[#090909]">
+      <footer className="border-t border-white/10 bg-[#050505]">
         <div className="mx-auto flex max-w-[1440px] flex-col gap-8 px-5 py-10 sm:px-8 md:flex-row md:items-end md:justify-between lg:px-12">
           <div className="space-y-4">
             <p className="font-mono text-[10px] uppercase tracking-[.24em] text-[#ef2635]">TZ / 001</p>

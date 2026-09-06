@@ -104,6 +104,8 @@ export function EventProvider({ children }) {
       locationType: newEventData.locationType,
       location: newEventData.location,
       capacity: parseInt(newEventData.capacity) || 100,
+      maxTeamSize: parseInt(newEventData.maxTeamSize) || 4,
+      allowSolo: newEventData.allowSolo !== undefined ? newEventData.allowSolo : true,
       rsvpCount: 0,
       coverImage: newEventData.coverImage || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80',
       hostName: currentUser?.name || 'TechZen Community',
