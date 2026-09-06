@@ -61,16 +61,16 @@ export function EventCard({ event, featured = false }: { event: any; featured?: 
 
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" />
 
-        <div className="absolute left-5 top-5 flex gap-2 z-10">
-          <span className="bg-[#ef2635] px-2.5 py-1 font-mono text-[10px] font-bold uppercase tracking-wider text-white">
+        <div className="absolute left-3 top-3 sm:left-5 sm:top-5 flex gap-1.5 sm:gap-2 z-10">
+          <span className="bg-[#ef2635] px-2 py-0.5 sm:px-2.5 sm:py-1 font-mono text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-white">
             {displayCategory}
           </span>
-          <span className="border border-white/25 bg-black/35 px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider text-white/75">
+          <span className="border border-white/25 bg-black/35 px-2 py-0.5 sm:px-2.5 sm:py-1 font-mono text-[9px] sm:text-[10px] uppercase tracking-wider text-white/75">
             {event.format || event.locationType || 'ONLINE'}
           </span>
         </div>
 
-        <span className="absolute bottom-5 left-5 font-mono text-[10px] uppercase tracking-widest text-white/60 z-10">
+        <span className="absolute bottom-3 left-3 sm:bottom-5 sm:left-5 font-mono text-[9px] sm:text-[10px] uppercase tracking-widest text-white/60 z-10">
           {isEnded ? (
             <span className="text-[#ff6570] font-semibold">REGISTRATION CLOSED</span>
           ) : spots < 15 ? (
@@ -81,24 +81,24 @@ export function EventCard({ event, featured = false }: { event: any; featured?: 
         </span>
       </div>
 
-      <div className={`flex flex-col justify-between p-5 ${featured ? 'md:p-8' : ''} ${isEnded ? 'opacity-70' : ''}`}>
+      <div className={`flex flex-col justify-between p-3.5 sm:p-5 ${featured ? 'md:p-8' : ''} ${isEnded ? 'opacity-70' : ''}`}>
         <div>
-          <div className="mb-5 flex items-center justify-between font-mono text-[10px] uppercase tracking-widest text-white/40">
+          <div className="mb-2 sm:mb-4 flex items-center justify-between font-mono text-[9px] sm:text-[10px] uppercase tracking-widest text-white/40">
             <span>{event.date}</span>
-            <ArrowUpRight size={16} className="text-[#ef2635] transition-transform group-hover:translate-x-1 group-hover:-translate-y-1" />
+            <ArrowUpRight size={15} className="text-[#ef2635] transition-transform group-hover:translate-x-1 group-hover:-translate-y-1" />
           </div>
-          <h3 className={`max-w-xl font-semibold leading-[1.04] text-white transition-colors group-hover:text-[#ff4855] ${featured ? 'text-3xl sm:text-4xl' : 'text-2xl'}`}>
+          <h3 className={`max-w-xl font-semibold leading-tight text-white transition-colors group-hover:text-[#ff4855] ${featured ? 'text-xl sm:text-3xl md:text-4xl' : 'text-lg sm:text-2xl'}`}>
             {event.title}
           </h3>
-          <p className="mt-4 line-clamp-2 text-sm leading-6 text-white/45">{event.description || event.tagline}</p>
+          <p className="mt-2 sm:mt-3 line-clamp-2 text-xs sm:text-sm leading-relaxed text-white/45">{event.description || event.tagline}</p>
         </div>
 
-        <div className="mt-7 flex flex-wrap gap-x-5 gap-y-2 text-xs text-white/45">
-          <span className="inline-flex items-center gap-1.5">
-            <CalendarDays size={14} className="text-[#ef2635]" /> {event.date}
+        <div className="mt-4 sm:mt-6 flex flex-wrap gap-x-4 gap-y-1.5 text-[11px] sm:text-xs text-white/45">
+          <span className="inline-flex items-center gap-1">
+            <CalendarDays size={13} className="text-[#ef2635]" /> {event.date}
           </span>
-          <span className="inline-flex items-center gap-1.5">
-            <MapPin size={14} className="text-[#ef2635]" /> {event.location}
+          <span className="inline-flex items-center gap-1">
+            <MapPin size={13} className="text-[#ef2635]" /> {event.location}
           </span>
         </div>
       </div>

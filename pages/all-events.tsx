@@ -44,24 +44,24 @@ export default function AllEvents() {
     <SiteShell>
       <main className="min-h-screen bg-[#000000] text-white">
         {/* Header Banner */}
-        <section className="relative overflow-hidden border-b border-white/10 bg-[#050505] py-16 px-5 sm:px-8 lg:px-12">
+        <section className="relative overflow-hidden border-b border-white/10 bg-[#050505] py-8 px-4 sm:py-16 sm:px-8 lg:px-12">
           <div className="absolute inset-0 grid-paper opacity-40" />
           <div className="absolute -right-10 top-0 h-64 w-64 rounded-full bg-[#ef2635]/10 blur-3xl" />
           
           <div className="relative mx-auto max-w-[1440px]">
-            <Link href="/" className="inline-flex items-center gap-2 font-mono text-xs text-white/50 hover:text-[#ef2635] transition-colors mb-6">
+            <Link href="/" className="inline-flex items-center gap-2 font-mono text-xs text-white/50 hover:text-[#ef2635] transition-colors mb-4 sm:mb-6">
               <ArrowLeft size={14} /> Back to Home
             </Link>
             
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 sm:gap-6">
               <div>
-                <div className="mb-3 flex items-center gap-2 font-mono text-[10px] uppercase tracking-[.25em] text-[#ef2635]">
-                  <span className="h-px w-6 bg-[#ef2635]" /> TechZen Archive
+                <div className="mb-2 sm:mb-3 flex items-center gap-2 font-mono text-[9px] sm:text-[10px] uppercase tracking-[.25em] text-[#ef2635]">
+                  <span className="h-px w-5 sm:w-6 bg-[#ef2635]" /> TechZen Archive
                 </div>
-                <h1 className="text-4xl sm:text-5xl font-bold tracking-tight text-white">
+                <h1 className="text-2xl sm:text-4xl md:text-5xl font-bold tracking-tight text-white">
                   All Events & Hackathons
                 </h1>
-                <p className="mt-3 text-sm text-white/50 max-w-xl">
+                <p className="mt-1.5 sm:mt-3 text-xs sm:text-sm text-white/50 max-w-xl">
                   Browse all community hackathons and tech quizzes.
                 </p>
               </div>

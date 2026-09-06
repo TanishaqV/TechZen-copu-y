@@ -989,14 +989,14 @@ export default function EventDetail() {
       <main className="bg-[#000000] text-white min-h-screen">
         
         {/* Banner Section */}
-        <section className="relative overflow-hidden border-b border-white/10 bg-[#050505] py-16 px-5 sm:px-8 lg:px-12">
+        <section className="relative overflow-hidden border-b border-white/10 bg-[#050505] py-8 px-4 sm:py-16 sm:px-8 lg:px-12">
           {displayEvent.coverImage && (
             <img src={displayEvent.coverImage} alt="" className="absolute inset-0 w-full h-full object-cover opacity-40" />
           )}
           <div className="absolute inset-0 bg-gradient-to-t from-[#000000] via-[#000000]/80 to-transparent" />
           
           <div className="relative mx-auto max-w-[1440px]">
-            <div className="flex items-center justify-between gap-4 mb-6">
+            <div className="flex items-center justify-between gap-4 mb-4 sm:mb-6">
               <Link href="/all-events" className="inline-flex items-center gap-2 font-mono text-xs text-white/50 hover:text-[#ef2635] transition-colors">
                 <ArrowLeft size={14} /> Back to all events
               </Link>
@@ -1006,23 +1006,23 @@ export default function EventDetail() {
                 <button
                   type="button"
                   onClick={handleDeleteCurrentEvent}
-                  className="bg-rose-950/80 hover:bg-rose-900 border border-rose-700/60 text-rose-300 px-4 py-2 text-xs font-mono font-bold uppercase tracking-wider transition flex items-center gap-2 cursor-pointer shadow-lg"
+                  className="bg-rose-950/80 hover:bg-rose-900 border border-rose-700/60 text-rose-300 px-3 py-1.5 sm:px-4 sm:py-2 text-xs font-mono font-bold uppercase tracking-wider transition flex items-center gap-1.5 cursor-pointer shadow-lg"
                 >
-                  <Trash2 size={15} /> Delete Event Post
+                  <Trash2 size={14} /> Delete Event Post
                 </button>
               )}
             </div>
 
-            <div className="flex flex-wrap items-center gap-2 font-mono text-[10px] uppercase tracking-[.2em] mb-4">
-              <span className="bg-[#ef2635] px-2.5 py-1 text-white font-bold">{displayEvent.category}</span>
-              <span className="border border-white/20 px-2.5 py-1 text-white/55">{displayEvent.format || 'ONLINE'}</span>
-              <span className="border border-[#ef2635]/50 text-[#ef2635] px-2.5 py-1 font-bold">
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 font-mono text-[9px] sm:text-[10px] uppercase tracking-wider mb-3 sm:mb-4">
+              <span className="bg-[#ef2635] px-2 py-0.5 sm:px-2.5 sm:py-1 text-white font-bold">{displayEvent.category}</span>
+              <span className="border border-white/20 px-2 py-0.5 sm:px-2.5 sm:py-1 text-white/55">{displayEvent.format || 'ONLINE'}</span>
+              <span className="border border-[#ef2635]/50 text-[#ef2635] px-2 py-0.5 sm:px-2.5 sm:py-1 font-bold">
                 TEAM SIZE: UP TO {maxAllowedMembers} MEMBERS
               </span>
             </div>
 
-            <h1 className="text-4xl sm:text-6xl font-bold tracking-tight text-white">{displayEvent.title}</h1>
-            <p className="mt-4 text-base text-white/60 max-w-2xl">{displayEvent.tagline || displayEvent.description}</p>
+            <h1 className="text-2xl sm:text-5xl md:text-6xl font-bold tracking-tight text-white leading-tight">{displayEvent.title}</h1>
+            <p className="mt-2 sm:mt-4 text-xs sm:text-base text-white/60 max-w-2xl leading-relaxed">{displayEvent.tagline || displayEvent.description}</p>
           </div>
         </section>
 

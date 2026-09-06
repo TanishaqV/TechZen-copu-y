@@ -34,33 +34,50 @@ export default function Home() {
         <section className="relative overflow-hidden border-b border-white/10">
           <div className="absolute inset-0 grid-paper opacity-50" />
           <div className="absolute -right-20 top-20 h-80 w-80 rounded-full bg-[#ef2635]/10 blur-3xl" />
-          <div className="relative mx-auto grid max-w-[1440px] items-end gap-12 px-5 pb-20 pt-16 sm:px-8 md:grid-cols-[1.15fr_.85fr] md:pb-28 md:pt-28 lg:px-12">
+          <div className="relative mx-auto grid max-w-[1440px] items-end gap-6 sm:gap-12 px-4 py-10 sm:px-8 sm:pb-20 sm:pt-16 md:grid-cols-[1.15fr_.85fr] md:pb-28 md:pt-28 lg:px-12">
             <div className="animate-enter">
-              <div className="mb-8 flex items-center gap-3 font-mono text-[10px] uppercase tracking-[.25em] text-[#ef2635]"><span className="h-px w-9 bg-[#ef2635]" /> Build in public / together</div>
-              <h1 className="max-w-5xl text-balance text-[clamp(3.5rem,8vw,8.5rem)] font-bold leading-[.84] tracking-[-.07em] text-white">Make your<br /><span className="text-[#ef2635]">next thing.</span></h1>
-              <p className="mt-9 max-w-lg text-base leading-7 text-white/55 sm:text-lg">TechZen is where developers, designers, and builders collide. Find your room, bring your unfinished idea, leave with momentum.</p>
-              <div className="mt-9 flex flex-wrap items-center gap-5">
-                <a href="#events" onClick={(e) => { e.preventDefault(); document.getElementById('events')?.scrollIntoView({ behavior: 'smooth' }); }} data-testid="link-explore-events" className="group flex items-center gap-3 bg-[#ef2635] px-5 py-3.5 text-sm font-bold text-white transition-all hover:bg-[#ff3d4b] hover:shadow-[5px_5px_0_#f4f4f4]">Explore events <ArrowDownRight size={17} className="transition-transform group-hover:translate-y-1" /></a>
+              <div className="mb-4 sm:mb-8 flex items-center gap-3 font-mono text-[9px] sm:text-[10px] uppercase tracking-[.25em] text-[#ef2635]">
+                <span className="h-px w-6 sm:w-9 bg-[#ef2635]" /> Build in public / together
+              </div>
+              <h1 className="max-w-5xl text-balance text-3xl sm:text-6xl md:text-7xl lg:text-[7.5rem] font-bold leading-[.95] tracking-[-.05em] text-white">
+                Make your<br /><span className="text-[#ef2635]">next thing.</span>
+              </h1>
+              <p className="mt-4 sm:mt-8 max-w-lg text-xs sm:text-base leading-relaxed text-white/55">
+                TechZen is where developers, designers, and builders collide. Find your room, bring your unfinished idea, leave with momentum.
+              </p>
+              <div className="mt-6 sm:mt-8 flex flex-wrap items-center gap-3 sm:gap-5">
+                <a href="#events" onClick={(e) => { e.preventDefault(); document.getElementById('events')?.scrollIntoView({ behavior: 'smooth' }); }} data-testid="link-explore-events" className="group flex items-center gap-2 sm:gap-3 bg-[#ef2635] px-4 py-2.5 sm:px-5 sm:py-3.5 text-xs sm:text-sm font-bold text-white transition-all hover:bg-[#ff3d4b]">
+                  Explore events <ArrowDownRight size={15} className="transition-transform group-hover:translate-y-1" />
+                </a>
                 
                 {/* Build with us link: Redirects to /all-events if logged in, or /sign-up if not */}
-                <Link href={isLoggedIn ? "/all-events" : "/sign-up"} data-testid="link-build-with-us" className="group flex items-center gap-2 text-sm font-semibold text-white/70 transition-colors hover:text-white">
-                  Build with us <ArrowRight size={16} className="text-[#ef2635] transition-transform group-hover:translate-x-1" />
+                <Link href={isLoggedIn ? "/all-events" : "/sign-up"} data-testid="link-build-with-us" className="group flex items-center gap-2 text-xs sm:text-sm font-semibold text-white/70 transition-colors hover:text-white">
+                  Build with us <ArrowRight size={15} className="text-[#ef2635] transition-transform group-hover:translate-x-1" />
                 </Link>
               </div>
             </div>
-            <div className="animate-rise delay-2 relative mx-auto w-full max-w-sm md:mb-2">
-              <div className="absolute -inset-3 border border-[#ef2635]/25" />
+            <div className="animate-rise delay-2 relative mx-auto w-full max-w-[260px] sm:max-w-sm md:mb-2 mt-4 sm:mt-0">
+              <div className="absolute -inset-2 sm:-inset-3 border border-[#ef2635]/25" />
               <div className="relative overflow-hidden border border-white/15 bg-black">
                 <img src={logoPath} alt="TechZen logo" className="aspect-square w-full object-cover" data-testid="img-hero-logo" />
-                <div className="flex items-center justify-between border-t border-white/10 px-4 py-3 font-mono text-[9px] uppercase tracking-[.2em] text-white/45"><span>Signal / active</span><span className="flex items-center gap-2 text-[#ef2635]"><i className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#ef2635]" /> Live community</span></div>
+                <div className="flex items-center justify-between border-t border-white/10 px-3 py-2 sm:px-4 sm:py-3 font-mono text-[8px] sm:text-[9px] uppercase tracking-[.2em] text-white/45">
+                  <span>Signal / active</span>
+                  <span className="flex items-center gap-1.5 text-[#ef2635]">
+                    <i className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#ef2635]" /> Live community
+                  </span>
+                </div>
               </div>
             </div>
           </div>
-          <div className="relative mx-auto flex max-w-[1440px] items-center justify-between border-t border-white/10 px-5 py-4 font-mono text-[9px] uppercase tracking-[.2em] text-white/30 sm:px-8 lg:px-12"><span>01 / Discovery</span><span>Scroll to enter</span><span className="hidden sm:inline">SF · NYC · Everywhere</span></div>
+          <div className="relative mx-auto flex max-w-[1440px] items-center justify-between border-t border-white/10 px-4 py-3 sm:px-8 sm:py-4 font-mono text-[8px] sm:text-[9px] uppercase tracking-[.2em] text-white/30 lg:px-12">
+            <span>01 / Discovery</span>
+            <span>Scroll to enter</span>
+            <span className="hidden sm:inline">SF · NYC · Everywhere</span>
+          </div>
         </section>
 
-        <section id="manifesto" className="mx-auto max-w-[1440px] px-5 py-20 sm:px-8 md:py-28 lg:px-12">
-          <div className="grid gap-10 md:grid-cols-[.82fr_1.18fr] md:gap-14 items-stretch">
+        <section id="manifesto" className="mx-auto max-w-[1440px] px-4 py-10 sm:px-8 sm:py-20 md:py-28 lg:px-12">
+          <div className="grid gap-6 sm:gap-10 md:grid-cols-[.82fr_1.18fr] md:gap-14 items-stretch">
             {/* Left Column: Flex-col with h-full so Signal Box stretches to match right column height exactly */}
             <div className="animate-enter flex flex-col justify-between h-full">
               <div>
@@ -160,25 +177,46 @@ export default function Home() {
                 </div>
               </div>
             </div>
-            <div className="animate-rise delay-1"><h2 className="max-w-4xl text-balance text-4xl font-semibold leading-[1.02] tracking-[-.04em] text-white sm:text-6xl">The best ideas rarely arrive fully formed. <span className="text-white/35">They get sharper in a room with the right people.</span></h2><div className="mt-12 grid gap-8 border-t border-white/10 pt-8 sm:grid-cols-3"><div><Code2 size={21} className="text-[#ef2635]" /><p className="mt-4 text-sm font-semibold text-white">Code with context</p><p className="mt-2 text-xs leading-5 text-white/40">Practical sessions built for shipping, not spectators.</p></div><div><Layers3 size={21} className="text-[#ef2635]" /><p className="mt-4 text-sm font-semibold text-white">Create in public</p><p className="mt-2 text-xs leading-5 text-white/40">Show the rough edges. Learn faster together.</p></div><div><Cpu size={21} className="text-[#ef2635]" /><p className="mt-4 text-sm font-semibold text-white">Leave with a next step</p><p className="mt-2 text-xs leading-5 text-white/40">Every event ends with momentum you can use.</p></div></div></div>
+            <div className="animate-rise delay-1">
+              <h2 className="max-w-4xl text-balance text-2xl sm:text-4xl md:text-5xl font-semibold leading-tight tracking-[-.03em] text-white">
+                The best ideas rarely arrive fully formed. <span className="text-white/35">They get sharper in a room with the right people.</span>
+              </h2>
+              <div className="mt-6 sm:mt-12 grid gap-5 sm:gap-8 border-t border-white/10 pt-6 sm:pt-8 sm:grid-cols-3">
+                <div>
+                  <Code2 size={18} className="text-[#ef2635]" />
+                  <p className="mt-2.5 sm:mt-4 text-xs sm:text-sm font-semibold text-white">Code with context</p>
+                  <p className="mt-1 sm:mt-2 text-[11px] sm:text-xs leading-relaxed text-white/40">Practical sessions built for shipping, not spectators.</p>
+                </div>
+                <div>
+                  <Layers3 size={18} className="text-[#ef2635]" />
+                  <p className="mt-2.5 sm:mt-4 text-xs sm:text-sm font-semibold text-white">Create in public</p>
+                  <p className="mt-1 sm:mt-2 text-[11px] sm:text-xs leading-relaxed text-white/40">Show the rough edges. Learn faster together.</p>
+                </div>
+                <div>
+                  <Cpu size={18} className="text-[#ef2635]" />
+                  <p className="mt-2.5 sm:mt-4 text-xs sm:text-sm font-semibold text-white">Leave with a next step</p>
+                  <p className="mt-1 sm:mt-2 text-[11px] sm:text-xs leading-relaxed text-white/40">Every event ends with momentum you can use.</p>
+                </div>
+              </div>
+            </div>
           </div>
         </section>
 
         <section id="events" className="border-y border-white/10 bg-[#000000]">
-          <div className="mx-auto max-w-[1440px] px-5 py-20 sm:px-8 md:py-28 lg:px-12">
-            <div className="flex flex-col justify-between gap-8 md:flex-row md:items-end">
+          <div className="mx-auto max-w-[1440px] px-4 py-10 sm:px-8 sm:py-20 md:py-28 lg:px-12">
+            <div className="flex flex-col justify-between gap-4 sm:gap-8 md:flex-row md:items-end">
               <div>
-                <p className="font-mono text-[10px] uppercase tracking-[.25em] text-[#ef2635]">03 / Upcoming</p>
-                <h2 className="mt-4 text-4xl font-semibold tracking-[-.04em] text-white sm:text-6xl">Find your room.</h2>
+                <p className="font-mono text-[9px] sm:text-[10px] uppercase tracking-[.25em] text-[#ef2635]">03 / Upcoming</p>
+                <h2 className="mt-2 sm:mt-4 text-2xl sm:text-4xl md:text-5xl font-semibold tracking-tight text-white">Find your room.</h2>
               </div>
-              <div className="flex flex-wrap gap-2" role="tablist" aria-label="Event filters">
+              <div className="flex flex-wrap gap-1.5 sm:gap-2" role="tablist" aria-label="Event filters">
                 {filters.map((item) => (
                   <button
                     type="button"
                     key={item}
                     onClick={() => setFilter(item)}
                     data-testid={`button-filter-${item.toLowerCase()}`}
-                    className={`focus-ring border px-3.5 py-2 font-mono text-[10px] uppercase tracking-wider transition-all cursor-pointer ${
+                    className={`focus-ring border px-2.5 py-1.5 sm:px-3.5 sm:py-2 font-mono text-[9px] sm:text-[10px] uppercase tracking-wider transition-all cursor-pointer ${
                       filter === item
                         ? 'border-[#ef2635] bg-[#ef2635] text-white font-bold'
                         : 'border-white/15 text-white/45 hover:border-white/40 hover:text-white'
@@ -191,14 +229,14 @@ export default function Home() {
             </div>
 
             {!featured ? (
-              <div className="mt-12 border border-dashed border-white/20 p-12 text-center">
-                <Radio size={25} className="mx-auto text-[#ef2635]" />
-                <p className="mt-5 text-lg font-semibold text-white">The calendar is quiet.</p>
-                <p className="mt-2 text-sm text-white/45">No events found matching "{filter}". Check back soon or select "ALL".</p>
+              <div className="mt-8 border border-dashed border-white/20 p-8 text-center">
+                <Radio size={20} className="mx-auto text-[#ef2635]" />
+                <p className="mt-3 text-base font-semibold text-white">The calendar is quiet.</p>
+                <p className="mt-1 text-xs text-white/45">No events found matching "{filter}". Check back soon or select "ALL".</p>
               </div>
             ) : (
               <>
-                <div className="mt-12 grid gap-5 md:grid-cols-2">
+                <div className="mt-6 sm:mt-12 grid gap-4 sm:gap-5 md:grid-cols-2">
                   <EventCard event={featured} featured />
                   {remaining.map((event) => (
                     <div key={event.id}>
