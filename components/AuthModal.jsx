@@ -139,7 +139,14 @@ export default function AuthModal() {
           {/* Direct Google OAuth Login Button */}
           <button
             type="button"
-            onClick={() => googleLoginTrigger()}
+            onClick={() => {
+              try {
+                googleLoginTrigger();
+              } catch (err) {
+                console.error('Google login error:', err);
+                setError('Google sign-in popup blocked or origin restricted. Please enter your email below.');
+              }
+            }}
             className="w-full py-3.5 px-4 rounded-md border border-[#ef2635]/50 bg-[#ef2635]/15 hover:bg-[#ef2635]/30 text-white text-xs font-bold font-mono tracking-wider transition flex items-center justify-center space-x-3 cursor-pointer shadow-[0_0_20px_rgba(239,38,53,0.25)] hover:border-[#ef2635]"
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24">
@@ -151,10 +158,67 @@ export default function AuthModal() {
             <span>CONTINUE WITH GOOGLE</span>
           </button>
 
-          <p className="text-[10px] text-white/35 text-center font-mono">
-            Fast 1-click Google authentication
-          </p>
+          {/* Divider */}
+          <div className="relative flex items-center justify-center my-2">
+            <div className="border-t border-white/10 w-full" />
+            <span className="bg-[#111111] px-3 font-mono text-[9px] text-white/40 uppercase tracking-wider shrink-0">
+              OR SIGN IN WITH EMAIL
+            </span>
+          </div>
 
+          {/* Direct Email Form */}
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-[10px] font-mono text-zinc-400 uppercase tracking-wider mb-1.5">
+                Email Address
+              </label>
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@example.com or tanishaqvermatechzen@gmail.com"
+                className="w-full px-3.5 py-2.5 bg-[#181818] border border-white/15 focus:border-[#ef2635] text-white text-xs font-mono rounded-none outline-none transition"
+              />
+            </div>
+
+            <button
+              type="submit"
+              className="w-full py-3 px-4 bg-[#ef2635] hover:bg-[#ff3d4b] text-white text-xs font-mono font-bold uppercase tracking-wider transition cursor-pointer shadow-md"
+            >
+              Sign In / Continue
+            </button>
+          </form>
+
+          {/* Quick Admin Email Shortcuts */}
+          <div className="pt-2 border-t border-white/10 space-y-2">
+            <div className="text-[10px] font-mono text-zinc-400 uppercase tracking-wider">
+              Quick Admin Accounts (1-Click):
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {[
+                'tanishaqvermatechzen@gmail.com',
+                'ishaan.m1608@gmail.com',
+                'techzen.innovation@gmail.com'
+              ].map((adminMail) => (
+                <button
+                  key={adminMail}
+                  type="button"
+                  onClick={() => {
+                    setEmail(adminMail);
+                    handleAuthSuccess(adminMail, 'google-oauth');
+                  }}
+                  className="text-[10px] font-mono bg-white/5 hover:bg-[#ef2635]/20 text-zinc-300 hover:text-white border border-white/10 hover:border-[#ef2635]/40 px-2 py-1 transition cursor-pointer"
+                >
+                  {adminMail}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <p className="text-[10px] text-white/35 text-center font-mono">
+            Instant authentication for TechZen community members & organizers
+          </p>
         </div>
       </div>
     </div>
