@@ -184,32 +184,53 @@ export function SiteShell({ children }: SiteShellProps) {
 
         {/* Mobile Dropdown Drawer */}
         {menuOpen && (
-          <div className="border-t border-white/10 bg-[#000000] px-5 py-5 md:hidden space-y-4">
+          <div className="border-t border-white/10 bg-[#000000]/95 backdrop-blur-xl px-5 py-6 md:hidden space-y-5 animate-in slide-in-from-top-2 duration-200">
             <nav className="flex flex-col gap-4">
-              <Link href="/" onClick={() => setMenuOpen(false)} className="text-left text-lg text-white/80">Home</Link>
-              <button onClick={() => { scrollToSection('manifesto'); setMenuOpen(false); }} className="text-left text-lg text-white/80">Our Manifesto</button>
-              <Link href="/all-events" onClick={() => setMenuOpen(false)} className="text-left text-lg text-white/80">All Events</Link>
-              <a href={GMAIL_COMPOSE_URL} target="_blank" rel="noreferrer" className="text-left text-lg text-[#ef2635] font-semibold flex items-center gap-2">
+              <Link href="/" onClick={() => setMenuOpen(false)} className="text-left text-base font-medium text-white/90 hover:text-white py-1">Home</Link>
+              <button onClick={() => { scrollToSection('manifesto'); setMenuOpen(false); }} className="text-left text-base font-medium text-white/90 hover:text-white py-1 cursor-pointer">Our Manifesto</button>
+              <Link href="/all-events" onClick={() => setMenuOpen(false)} className="text-left text-base font-medium text-white/90 hover:text-white py-1">All Events</Link>
+              <a href={GMAIL_COMPOSE_URL} target="_blank" rel="noreferrer" className="text-left text-base text-[#ef2635] font-semibold flex items-center gap-2 py-1">
                 <Mail size={18} /> Contact: techzen.innovation@gmail.com
               </a>
-              <div className="pt-2 border-t border-white/10 flex flex-col gap-3">
-                <a href={LINKEDIN_URL} target="_blank" rel="noreferrer" className="text-left text-sm text-sky-400 font-medium flex items-center gap-2">
+
+              {/* Mobile Social Links */}
+              <div className="pt-3 border-t border-white/10 flex flex-col gap-3">
+                <a href={LINKEDIN_URL} target="_blank" rel="noreferrer" className="text-left text-sm text-sky-400 font-medium flex items-center gap-2 py-0.5">
                   <Linkedin size={16} /> LinkedIn (TechZen Innovation)
                 </a>
-                <a href={INSTAGRAM_URL} target="_blank" rel="noreferrer" className="text-left text-sm text-pink-400 font-medium flex items-center gap-2">
+                <a href={INSTAGRAM_URL} target="_blank" rel="noreferrer" className="text-left text-sm text-pink-400 font-medium flex items-center gap-2 py-0.5">
                   <Instagram size={16} /> Instagram (@techzen.in)
                 </a>
-                <a href={WHATSAPP_COMMUNITY_URL} target="_blank" rel="noreferrer" className="text-left text-sm text-emerald-400 font-medium flex items-center gap-2">
+                <a href={WHATSAPP_COMMUNITY_URL} target="_blank" rel="noreferrer" className="text-left text-sm text-emerald-400 font-medium flex items-center gap-2 py-0.5">
                   <MessageCircle size={16} /> WhatsApp Community
                 </a>
               </div>
+
+              {/* Mobile User Actions */}
               {activeUser ? (
-                <div className="pt-2 border-t border-white/10 flex flex-col gap-3">
-                  <Link href="/user-portal" onClick={() => setMenuOpen(false)} className="text-lg text-white/85 font-semibold">My portal ({activeUser.name})</Link>
-                  <button onClick={() => { logout(); setMenuOpen(false); }} className="text-left text-lg text-[#ef2635]">Sign out</button>
+                <div className="pt-3 border-t border-white/10 flex flex-col gap-3">
+                  {effectiveIsAdmin && (
+                    <button
+                      onClick={() => { setCreateEventModalOpen(true); setMenuOpen(false); }}
+                      className="w-full flex items-center justify-center gap-2 bg-[#ef2635] hover:bg-[#ff3d4b] text-white py-3 text-xs font-mono font-bold uppercase tracking-wider transition-all shadow-lg rounded-md"
+                    >
+                      <Plus size={16} /> Post New Event
+                    </button>
+                  )}
+                  <Link href="/user-portal" onClick={() => setMenuOpen(false)} className="w-full text-center py-2.5 text-sm text-white bg-white/10 rounded-md font-semibold border border-white/15">
+                    My Portal ({activeUser.name})
+                  </Link>
+                  <button onClick={() => { logout(); setMenuOpen(false); }} className="text-left text-sm text-[#ef2635] font-semibold py-1">Sign Out</button>
                 </div>
               ) : (
-                <button onClick={() => { setLocation('/sign-in'); setMenuOpen(false); }} className="text-left text-lg text-white/80">Sign in</button>
+                <div className="pt-3 border-t border-white/10 flex flex-col gap-2">
+                  <button
+                    onClick={() => { setLocation('/sign-in'); setMenuOpen(false); }}
+                    className="w-full flex items-center justify-center gap-2 bg-[#ef2635] hover:bg-[#ff3d4b] text-white py-3 text-xs font-bold uppercase tracking-wider rounded-md shadow-lg"
+                  >
+                    Join Community <ArrowUpRight size={15} />
+                  </button>
+                </div>
               )}
             </nav>
           </div>

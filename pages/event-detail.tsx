@@ -1028,10 +1028,10 @@ export default function EventDetail() {
 
         {/* Tab Navigation Bar */}
         <div className="border-b border-white/10 bg-[#080808]">
-          <div className="mx-auto max-w-[1440px] px-5 sm:px-8 lg:px-12 flex space-x-2 font-mono text-xs">
+          <div className="mx-auto max-w-[1440px] px-4 sm:px-8 lg:px-12 flex space-x-2 overflow-x-auto no-scrollbar whitespace-nowrap font-mono text-xs">
             <button
               onClick={() => handleTabClick('event')}
-              className={`py-4 px-5 font-bold transition border-b-2 flex items-center space-x-2 cursor-pointer ${
+              className={`py-3.5 sm:py-4 px-4 sm:px-5 font-bold transition border-b-2 flex items-center space-x-2 shrink-0 cursor-pointer ${
                 activeTab === 'event' ? 'border-[#ef2635] text-white bg-white/[0.03]' : 'border-transparent text-white/45 hover:text-white'
               }`}
             >
@@ -1041,7 +1041,7 @@ export default function EventDetail() {
 
             <button
               onClick={() => handleTabClick('team')}
-              className={`py-4 px-5 font-bold transition border-b-2 flex items-center space-x-2 cursor-pointer ${
+              className={`py-3.5 sm:py-4 px-4 sm:px-5 font-bold transition border-b-2 flex items-center space-x-2 shrink-0 cursor-pointer ${
                 activeTab === 'team' ? 'border-[#ef2635] text-white bg-white/[0.03]' : 'border-transparent text-white/45 hover:text-white'
               }`}
             >
@@ -1053,7 +1053,7 @@ export default function EventDetail() {
             {!isQuizEvent && (
               <button
                 onClick={() => handleTabClick('project')}
-                className={`py-4 px-5 font-bold transition border-b-2 flex items-center space-x-2 cursor-pointer ${
+                className={`py-3.5 sm:py-4 px-4 sm:px-5 font-bold transition border-b-2 flex items-center space-x-2 shrink-0 cursor-pointer ${
                   activeTab === 'project' ? 'border-[#ef2635] text-white bg-white/[0.03]' : 'border-transparent text-white/45 hover:text-white'
                 }`}
               >
