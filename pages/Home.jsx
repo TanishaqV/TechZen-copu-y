@@ -104,7 +104,7 @@ export default function Home() {
               CODE • CREATE • INNOVATE
             </div>
             <div className="text-[11px] text-zinc-600">
-              © 2026 TECHZEN EVENTS
+              © 2026 TECHZEN INNOVATIONS
             </div>
           </div>
 

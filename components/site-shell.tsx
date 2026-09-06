@@ -308,7 +308,7 @@ export function SiteShell({ children }: SiteShellProps) {
             <div>
               <a href={WHATSAPP_COMMUNITY_URL} target="_blank" rel="noreferrer" className="text-white/40 hover:text-emerald-300 transition-colors font-semibold">TechZen WhatsApp Community</a>
             </div>
-            <div className="text-white/20 pt-1">© 2026 TechZen Events</div>
+            <div className="text-white/20 pt-1">© 2026 TechZen Innovations</div>
           </div>
         </div>
       </footer>

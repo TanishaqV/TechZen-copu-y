@@ -36,9 +36,9 @@ export default function Navbar() {
               <span className="text-red-accent font-black text-xs -ml-0.5">Z</span>
             </div>
 
-            <div className="flex items-center font-outfit font-black tracking-widest text-lg uppercase">
-              <span className="text-white">TECH</span>
-              <span className="text-red-accent">ZEN</span>
+            <div className="flex items-center space-x-1.5 font-mono text-sm sm:text-base font-extrabold tracking-tight text-white">
+              <span>TechZen</span>
+              <span className="bg-[#ef2635] text-[9px] px-1.5 py-0.5 uppercase text-white font-bold tracking-wider">INNOVATIONS</span>
             </div>
           </div>
 
