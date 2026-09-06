@@ -1004,6 +1004,10 @@ app.post('/api/registrations/withdraw', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`🚀 Supabase Database API Server running on port ${PORT}`);
-});
+if (!process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`🚀 Supabase Database API Server running on port ${PORT}`);
+  });
+}
+
+export default app;

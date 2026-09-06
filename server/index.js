@@ -7,7 +7,18 @@ import { INITIAL_EVENTS } from '../src/mockData.js';
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-const ADMIN_EMAIL = 'tanishaqvermatechzen@gmail.com';
+const ADMIN_EMAILS = [
+  'tanishaqvermatechzen@gmail.com',
+  'ishaan.m1608@gmail.com',
+  'techzen.innovation@gmail.com'
+];
+const ADMIN_EMAIL = ADMIN_EMAILS[0];
+
+function isEmailAdmin(email) {
+  if (!email) return false;
+  const clean = email.trim().toLowerCase();
+  return ADMIN_EMAILS.some(admin => admin.toLowerCase() === clean);
+}
 
 // 1. CORS Security: Whitelist allowed origins
 const allowedOrigins = [
@@ -50,8 +61,8 @@ function verifyAdminAuth(req, res, next) {
   const userEmail = (req.headers['x-user-email'] || '').toLowerCase();
   const authHeader = req.headers['authorization'] || '';
 
-  if (!userEmail || userEmail !== ADMIN_EMAIL.toLowerCase()) {
-    return res.status(403).json({ error: `Forbidden: Action requires verified Admin access (${ADMIN_EMAIL})` });
+  if (!userEmail || !isEmailAdmin(userEmail)) {
+    return res.status(403).json({ error: `Forbidden: Action requires verified Admin access` });
   }
 
   // Require Authorization header presence
@@ -209,7 +220,7 @@ app.post('/api/auth/signup', async (req, res) => {
       return res.status(400).json({ error: 'Name and Email are required' });
     }
 
-    const isAdminUser = u.email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
+    const isAdminUser = isEmailAdmin(u.email);
     const secureHashedPassword = hashPassword(u.password || 'default-secret-password');
 
     const { rows } = await pool.query(`
@@ -250,18 +261,24 @@ app.post('/api/auth/login', async (req, res) => {
     }
 
     const cleanEmail = email.toLowerCase();
-    const isAdminUser = cleanEmail === ADMIN_EMAIL.toLowerCase();
+    const isAdminUser = isEmailAdmin(cleanEmail);
 
     const { rows } = await pool.query('SELECT * FROM users WHERE email = $1', [cleanEmail]);
     if (rows.length === 0) {
       const secureHashedPassword = hashPassword(password || 'google-oauth');
+      const getAdminName = (e) => {
+        if (e === 'ishaan.m1608@gmail.com') return 'Ishaan M (Admin)';
+        if (e === 'techzen.innovation@gmail.com') return 'TechZen Innovation (Admin)';
+        return 'Tanishaq Verma (Admin)';
+      };
+
       const newUser = {
         id: `usr-${Date.now()}`,
-        name: isAdminUser ? 'Tanishaq Verma (Admin)' : cleanEmail.split('@')[0].replace('.', ' ').replace(/^./, str => str.toUpperCase()),
+        name: isAdminUser ? getAdminName(cleanEmail) : cleanEmail.split('@')[0].replace('.', ' ').replace(/^./, str => str.toUpperCase()),
         email: cleanEmail,
         password: secureHashedPassword,
         role: isAdminUser ? 'Admin / Organizer' : 'Attendee',
-        bio: isAdminUser ? 'TechZen Community Founder & Admin' : 'TechZen Community Member',
+        bio: isAdminUser ? 'TechZen Community Admin' : 'TechZen Community Member',
         avatar: isAdminUser ? 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80' : 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
         techStack: ['Developer']
       };
@@ -304,7 +321,7 @@ app.get('/api/registrations', async (req, res) => {
     }
 
     // Admin can view all attendee registrations
-    if (requesterEmail === ADMIN_EMAIL.toLowerCase()) {
+    if (isEmailAdmin(requesterEmail)) {
       const { rows } = await pool.query('SELECT * FROM registrations ORDER BY registered_at DESC');
       return res.json(rows.map(mapRegistrationRow));
     }
@@ -987,6 +1004,10 @@ app.post('/api/registrations/withdraw', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`🚀 Supabase Database API Server running on port ${PORT}`);
-});
+if (!process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`🚀 Supabase Database API Server running on port ${PORT}`);
+  });
+}
+
+export default app;
