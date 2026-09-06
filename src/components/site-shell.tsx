@@ -52,7 +52,7 @@ export function SiteShell({ children }: SiteShellProps) {
             <TechZenLogo size={32} />
             <div className="flex flex-col">
               <span className="font-mono text-sm sm:text-base font-extrabold tracking-tight text-white flex items-center gap-1.5">
-                TechZen <span className="bg-[#ef2635] text-[9px] px-1.5 py-0.2 uppercase text-white font-bold tracking-wider">Events</span>
+                TechZen <span className="bg-[#ef2635] text-[9px] px-1.5 py-0.2 uppercase text-white font-bold tracking-wider">INNOVATIONS</span>
               </span>
               <span className="font-mono text-[8px] sm:text-[9px] uppercase tracking-[.22em] text-white/40 group-hover:text-[#ef2635] transition-colors">
                 Indian Hackathon Node
