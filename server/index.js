@@ -62,27 +62,46 @@ function verifyAdminAuth(req, res, next) {
   next();
 }
 
-// Seed default events if table is empty
+// Seed default events into database (always ensures INITIAL_EVENTS exist in DB)
 async function seedInitialEvents() {
-  const { rows } = await pool.query('SELECT COUNT(*) FROM events');
-  if (parseInt(rows[0].count) === 0) {
-    console.log('Seeding initial events into Supabase PostgreSQL...');
-    for (const ev of INITIAL_EVENTS) {
-      await pool.query(`
-        INSERT INTO events (
-          id, title, tagline, category, badge, date, time, location_type, location,
-          capacity, rsvp_count, cover_image, host_name, host_avatar, host_role,
-          description, tags, agenda, custom_questions
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
-        ON CONFLICT (id) DO NOTHING;
-      `, [
-        ev.id, ev.title, ev.tagline, ev.category, ev.badge, ev.date, ev.time, ev.locationType, ev.location,
-        ev.capacity, ev.rsvpCount, ev.coverImage, ev.hostName, ev.hostAvatar, ev.hostRole,
-        ev.description, ev.tags, JSON.stringify(ev.agenda), JSON.stringify(ev.customQuestions)
-      ]);
-    }
-    console.log('✅ Initial events seeded into Supabase!');
+  console.log('Seeding initial events into Supabase PostgreSQL...');
+  for (const ev of INITIAL_EVENTS) {
+    const allowSoloVal = ev.allowSolo !== undefined ? ev.allowSolo : true;
+    const maxTeamVal = ev.maxTeamSize || 4;
+    await pool.query(`
+      INSERT INTO events (
+        id, title, tagline, category, badge, date, time, location_type, location,
+        capacity, max_team_size, allow_solo, rsvp_count, cover_image, host_name, host_avatar, host_role,
+        description, tags, agenda, custom_questions
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
+      ON CONFLICT (id) DO UPDATE SET
+        title = EXCLUDED.title,
+        tagline = EXCLUDED.tagline,
+        category = EXCLUDED.category,
+        badge = EXCLUDED.badge,
+        date = EXCLUDED.date,
+        time = EXCLUDED.time,
+        location_type = EXCLUDED.location_type,
+        location = EXCLUDED.location,
+        capacity = EXCLUDED.capacity,
+        max_team_size = EXCLUDED.max_team_size,
+        allow_solo = EXCLUDED.allow_solo,
+        rsvp_count = EXCLUDED.rsvp_count,
+        cover_image = EXCLUDED.cover_image,
+        host_name = EXCLUDED.host_name,
+        host_avatar = EXCLUDED.host_avatar,
+        host_role = EXCLUDED.host_role,
+        description = EXCLUDED.description,
+        tags = EXCLUDED.tags,
+        agenda = EXCLUDED.agenda,
+        custom_questions = EXCLUDED.custom_questions;
+    `, [
+      ev.id, ev.title, ev.tagline, ev.category, ev.badge, ev.date, ev.time, ev.locationType || ev.format || 'ONLINE', ev.location,
+      ev.capacity || 100, maxTeamVal, allowSoloVal, ev.rsvpCount || 0, ev.coverImage || ev.imageUrl, ev.hostName, ev.hostAvatar, ev.hostRole,
+      ev.description, ev.tags || [], JSON.stringify(ev.agenda || []), JSON.stringify(ev.customQuestions || [])
+    ]);
   }
+  console.log('✅ Initial events seeded into Supabase!');
 }
 
 // Initialize database tables & seed
@@ -102,6 +121,9 @@ function mapEventRow(row) {
     locationType: row.location_type,
     location: row.location,
     capacity: row.capacity,
+    maxTeamSize: row.max_team_size || 4,
+    allowSolo: row.allow_solo !== false,
+    maxTeams: row.max_teams || 50,
     rsvpCount: row.rsvp_count,
     coverImage: row.cover_image,
     hostName: row.host_name,
@@ -143,17 +165,20 @@ app.get('/api/events', async (req, res) => {
 app.post('/api/events', verifyAdminAuth, async (req, res) => {
   try {
     const ev = req.body;
+    const allowSoloVal = ev.allowSolo !== undefined ? ev.allowSolo : true;
+    const maxTeamVal = ev.maxTeamSize || 4;
+    const maxTeamsVal = ev.maxTeams || 50;
 
     const { rows } = await pool.query(`
       INSERT INTO events (
         id, title, tagline, category, badge, date, time, location_type, location,
-        capacity, rsvp_count, cover_image, host_name, host_avatar, host_role,
+        capacity, max_team_size, allow_solo, max_teams, rsvp_count, cover_image, host_name, host_avatar, host_role,
         description, tags, agenda, custom_questions
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
       RETURNING *;
     `, [
       ev.id, ev.title, ev.tagline, ev.category, ev.badge || ev.category, ev.date, ev.time, ev.locationType, ev.location,
-      ev.capacity || 100, 0, ev.coverImage, ev.hostName || 'TechZen Admin', ev.hostAvatar, 'Community Admin',
+      ev.capacity || 100, maxTeamVal, allowSoloVal, maxTeamsVal, 0, ev.coverImage, ev.hostName || 'TechZen Admin', ev.hostAvatar, 'Community Admin',
       ev.description, ev.tags || [], JSON.stringify(ev.agenda || []), JSON.stringify(ev.customQuestions || [])
     ]);
 
@@ -355,6 +380,59 @@ function mapTeamRow(row) {
   };
 }
 
+// REALTIME SSE SUBSCRIBERS MANAGER (Instant Cross-Device Sync with 0 Read Query Cost on broadcast)
+const sseSubscribers = new Set();
+
+function addSseSubscriber(res, meta = {}) {
+  const sub = { res, ...meta };
+  sseSubscribers.add(sub);
+  return () => {
+    sseSubscribers.delete(sub);
+  };
+}
+
+function notifyTeamUpdate(payload) {
+  if (!payload || !sseSubscribers.size) return;
+  const dataString = `data: ${JSON.stringify({ type: 'TEAM_UPDATE', ...payload, timestamp: Date.now() })}\n\n`;
+
+  sseSubscribers.forEach((sub) => {
+    try {
+      sub.res.write(dataString);
+    } catch (e) {
+      sseSubscribers.delete(sub);
+    }
+  });
+}
+
+// GET /api/teams/stream - SERVER-SENT EVENTS REALTIME ENDPOINT FOR INSTANT CROSS-DEVICE SYNC
+app.get('/api/teams/stream', (req, res) => {
+  const { eventId, inviteCode } = req.query;
+
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  if (res.flushHeaders) res.flushHeaders();
+
+  const removeSubscriber = addSseSubscriber(res, { eventId, inviteCode });
+
+  res.write(`data: ${JSON.stringify({ type: 'CONNECTED', eventId, inviteCode })}\n\n`);
+
+  const heartbeatInterval = setInterval(() => {
+    try {
+      res.write(':ping\n\n');
+    } catch (e) {
+      clearInterval(heartbeatInterval);
+      removeSubscriber();
+    }
+  }, 25000);
+
+  req.on('close', () => {
+    clearInterval(heartbeatInterval);
+    removeSubscriber();
+  });
+});
+
 // POST /api/teams/generate-code - ON DEMAND DATABASE VERIFIED UNIQUE TEAM CODE
 app.post('/api/teams/generate-code', async (req, res) => {
   try {
@@ -365,14 +443,26 @@ app.post('/api/teams/generate-code', async (req, res) => {
 
     const cleanEmail = userEmail.toLowerCase().trim();
 
-    // 1. Check if leader already has a team for this event in Supabase
-    const existingTeam = await pool.query(
-      'SELECT * FROM teams WHERE event_id = $1 AND LOWER(leader_email) = $2',
-      [eventId, cleanEmail]
-    );
+    // 1. Check if user already belongs to ANY team for this event in Supabase (Leader or Teammate)
+    const { rows: allTeams } = await pool.query('SELECT * FROM teams WHERE event_id = $1', [eventId]);
+    for (const r of allTeams) {
+      const t = mapTeamRow(r);
+      const isLeader = t.leaderEmail && t.leaderEmail.toLowerCase().trim() === cleanEmail;
+      const isTeammate = Array.isArray(t.teammates) && t.teammates.some(m => m.email && m.email.toLowerCase().trim() === cleanEmail);
+      if (isLeader || isTeammate) {
+        return res.json(t);
+      }
+    }
 
-    if (existingTeam.rows.length > 0) {
-      return res.json(mapTeamRow(existingTeam.rows[0]));
+    // 1b. Check if event has reached maximum allowed registered teams limit set by admin
+    const eventRes = await pool.query('SELECT max_teams FROM events WHERE id = $1', [eventId]);
+    if (eventRes.rows.length > 0) {
+      const maxTeamsLimit = eventRes.rows[0].max_teams || 50;
+      if (allTeams.length >= maxTeamsLimit) {
+        return res.status(400).json({
+          error: `Event Team Capacity Full: This event has reached its maximum limit of ${maxTeamsLimit} registered teams set by the administrator.`
+        });
+      }
     }
 
     // 2. Generate a 100% unique Team Code verified against Supabase PostgreSQL
@@ -427,12 +517,58 @@ app.post('/api/teams/generate-code', async (req, res) => {
   }
 });
 
+// GET /api/teams/user-team - FIND USER'S EXISTING TEAM FOR AN EVENT IN SUPABASE
+app.get('/api/teams/user-team', async (req, res) => {
+  try {
+    const { eventId, userEmail } = req.query;
+    if (!eventId || !userEmail) {
+      return res.status(400).json({ error: 'eventId and userEmail are required' });
+    }
+
+    const cleanEmail = userEmail.toLowerCase().trim();
+    const { rows } = await pool.query('SELECT * FROM teams WHERE event_id = $1', [eventId]);
+
+    let foundTeam = null;
+    for (const r of rows) {
+      const team = mapTeamRow(r);
+      const isLeader = team.leaderEmail && team.leaderEmail.toLowerCase().trim() === cleanEmail;
+      const isTeammate = Array.isArray(team.teammates) && team.teammates.some(t => t.email && t.email.toLowerCase().trim() === cleanEmail);
+
+      if (isLeader || isTeammate) {
+        foundTeam = team;
+        break;
+      }
+    }
+
+    if (!foundTeam) {
+      return res.json({ isRegistered: false, team: null });
+    }
+
+    return res.json({ isRegistered: true, team: foundTeam });
+  } catch (err) {
+    console.error('Error checking user team in Supabase:', err);
+    res.status(500).json({ error: 'Failed to check user team status' });
+  }
+});
+
 // POST /api/teams - CREATE OR UPDATE TEAM IN SUPABASE
 app.post('/api/teams', async (req, res) => {
   try {
     const t = req.body;
     if (!t.eventId || !t.inviteCode || !t.teamName) {
       return res.status(400).json({ error: 'eventId, inviteCode, and teamName are required' });
+    }
+
+    const cleanLeaderEmail = (t.leaderEmail || '').toLowerCase().trim();
+
+    // Verify ownership if team already exists
+    const existingCheck = await pool.query('SELECT * FROM teams WHERE invite_code = $1', [t.inviteCode]);
+    if (existingCheck.rows.length > 0) {
+      const existingTeam = mapTeamRow(existingCheck.rows[0]);
+      const exLeader = (existingTeam.leaderEmail || '').toLowerCase().trim();
+      if (cleanLeaderEmail && exLeader && exLeader !== cleanLeaderEmail) {
+        return res.status(403).json({ error: 'Unauthorized: Only the original Team Leader can update team metadata.' });
+      }
     }
 
     const { rows } = await pool.query(`
@@ -447,10 +583,12 @@ app.post('/api/teams', async (req, res) => {
       RETURNING *;
     `, [
       t.id || `team-${Date.now()}`, t.eventId, t.inviteCode, t.teamName,
-      t.leaderName || 'Leader', t.leaderEmail || '', t.participantCount || 1, JSON.stringify(t.teammates || [])
+      t.leaderName || 'Leader', cleanLeaderEmail, t.participantCount || 1, JSON.stringify(t.teammates || [])
     ]);
 
-    res.json(mapTeamRow(rows[0]));
+    const savedTeam = mapTeamRow(rows[0]);
+    notifyTeamUpdate({ team: savedTeam });
+    res.json(savedTeam);
   } catch (err) {
     console.error('Error saving team to Supabase:', err);
     res.status(500).json({ error: 'Failed to save team' });
@@ -472,10 +610,10 @@ app.get('/api/teams/:inviteCode', async (req, res) => {
   }
 });
 
-// POST /api/teams/update-member - UPDATE MEMBER NAME, COLLEGE, ROLE (EMAIL FIXED) IN SUPABASE
+// POST /api/teams/update-member - UPDATE MEMBER NAME, COLLEGE, ROLE, PHONE (EMAIL FIXED) IN SUPABASE
 app.post('/api/teams/update-member', async (req, res) => {
   try {
-    const { inviteCode, memberEmail, name, college, role } = req.body;
+    const { inviteCode, memberEmail, editorEmail, name, college, role, phone } = req.body;
     if (!inviteCode || !memberEmail) {
       return res.status(400).json({ error: 'inviteCode and memberEmail are required' });
     }
@@ -486,20 +624,30 @@ app.post('/api/teams/update-member', async (req, res) => {
     }
 
     const team = mapTeamRow(rows[0]);
-    let updatedTeammates = [...team.teammates];
-    const cleanEmail = memberEmail.toLowerCase().trim();
+    const cleanMemberEmail = memberEmail.toLowerCase().trim();
+    const cleanEditor = (editorEmail || '').toLowerCase().trim();
 
+    // Verify authorization: editor must be Team Leader or the member being edited
+    const isLeader = cleanEditor && cleanEditor === (team.leaderEmail || '').toLowerCase().trim();
+    const isSelf = cleanEditor && cleanEditor === cleanMemberEmail;
+
+    if (cleanEditor && !isLeader && !isSelf) {
+      return res.status(403).json({ error: 'Unauthorized: You can only edit your own details or member details if you are the Team Leader.' });
+    }
+
+    let updatedTeammates = [...team.teammates];
     let updated = false;
     updatedTeammates = updatedTeammates.map((m, idx) => {
-      const isLeaderSlot = (idx === 0) && (cleanEmail === (team.leaderEmail || '').toLowerCase().trim() || !m.email);
-      const isMatchingEmail = m.email && m.email.toLowerCase().trim() === cleanEmail;
+      const isLeaderSlot = (idx === 0) && (cleanMemberEmail === (team.leaderEmail || '').toLowerCase().trim() || !m.email);
+      const isMatchingEmail = m.email && m.email.toLowerCase().trim() === cleanMemberEmail;
 
       if (isLeaderSlot || isMatchingEmail) {
         updated = true;
         return {
           ...m,
-          email: m.email || cleanEmail,
+          email: m.email || cleanMemberEmail,
           name: name !== undefined ? name : m.name,
+          phone: phone !== undefined ? phone : (m.phone || ''),
           college: college !== undefined ? college : m.college,
           role: role !== undefined ? role : m.role
         };
@@ -518,17 +666,163 @@ app.post('/api/teams/update-member', async (req, res) => {
       RETURNING *;
     `, [JSON.stringify(updatedTeammates), inviteCode]);
 
-    res.json(mapTeamRow(updateRes.rows[0]));
+    const updatedTeam = mapTeamRow(updateRes.rows[0]);
+    notifyTeamUpdate({ team: updatedTeam });
+    res.json(updatedTeam);
   } catch (err) {
     console.error('Error updating team member in Supabase:', err);
     res.status(500).json({ error: 'Failed to update member in database' });
   }
 });
 
+// POST /api/teams/update-collective - ONE COLLECTIVE UPDATE FOR TEAM NAME & ALL MEMBER ROLES/COLLEGES/PHONES
+app.post('/api/teams/update-collective', async (req, res) => {
+  try {
+    const { inviteCode, teamName, teammates, editorEmail } = req.body;
+    if (!inviteCode) {
+      return res.status(400).json({ error: 'inviteCode is required' });
+    }
+
+    const { rows } = await pool.query('SELECT * FROM teams WHERE invite_code = $1', [inviteCode]);
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'Team not found' });
+    }
+
+    const existingTeam = mapTeamRow(rows[0]);
+    const cleanEditor = (editorEmail || '').toLowerCase().trim();
+    const isLeader = cleanEditor && (
+      cleanEditor === (existingTeam.leaderEmail || '').toLowerCase().trim() ||
+      cleanEditor === (existingTeam.teammates[0]?.email || '').toLowerCase().trim()
+    );
+
+    // Determine final team name: only leader can change team name
+    const finalTeamName = (isLeader && teamName && teamName.trim()) ? teamName.trim() : existingTeam.teamName;
+
+    // Merge incoming teammates array with safety guards
+    const mergedTeammates = existingTeam.teammates.map((existingMem, idx) => {
+      const isLeadSlot = idx === 0;
+      const incomingMem = Array.isArray(teammates)
+        ? teammates.find(t => t.id === existingMem.id || (t.email && existingMem.email && t.email.toLowerCase().trim() === existingMem.email.toLowerCase().trim())) || teammates[idx]
+        : null;
+
+      if (!incomingMem) return existingMem;
+
+      const memEmailClean = (existingMem.email || '').toLowerCase().trim();
+      const isSelf = cleanEditor && memEmailClean === cleanEditor;
+      const canEditMember = isLeader || isSelf;
+
+      if (!canEditMember) {
+        return existingMem; // Non-leader cannot tamper with other members
+      }
+
+      // Resolve role
+      let resolvedRole = existingMem.role;
+      if (incomingMem.role !== undefined) {
+        if (incomingMem.role === 'Others (Type Custom Role)') {
+          resolvedRole = incomingMem.customRole || 'Teammate';
+        } else if (incomingMem.role) {
+          resolvedRole = incomingMem.role;
+        }
+      }
+
+      // Name rules: A user (isSelf) can update their own name, or Leader can update leader slot name.
+      const resolvedName = ((isSelf || (isLeadSlot && isLeader)) && incomingMem.name) ? incomingMem.name.trim() : existingMem.name;
+
+      return {
+        ...existingMem,
+        name: resolvedName || existingMem.name,
+        phone: incomingMem.phone !== undefined ? incomingMem.phone : (existingMem.phone || ''),
+        college: incomingMem.college !== undefined ? incomingMem.college.trim() : existingMem.college,
+        role: isLeadSlot ? 'Team Lead / Admin' : resolvedRole,
+        customRole: incomingMem.customRole !== undefined ? incomingMem.customRole : (existingMem.customRole || '')
+      };
+    });
+
+    const updateRes = await pool.query(`
+      UPDATE teams
+      SET team_name = $1, leader_name = $2, teammates = $3
+      WHERE invite_code = $4
+      RETURNING *;
+    `, [
+      finalTeamName,
+      mergedTeammates[0]?.name || existingTeam.leaderName,
+      JSON.stringify(mergedTeammates),
+      inviteCode
+    ]);
+
+    const updatedTeam = mapTeamRow(updateRes.rows[0]);
+    notifyTeamUpdate({ team: updatedTeam });
+    res.json(updatedTeam);
+  } catch (err) {
+    console.error('Error executing collective team update in Supabase:', err);
+    res.status(500).json({ error: 'Failed to update team in database' });
+  }
+});
+
+// POST /api/teams/remove-member - TEAM LEADER REMOVES PARTICIPANT FROM SUPABASE TEAM
+app.post('/api/teams/remove-member', async (req, res) => {
+  try {
+    const { inviteCode, leaderEmail, memberEmail } = req.body;
+    if (!inviteCode || !memberEmail) {
+      return res.status(400).json({ error: 'inviteCode and memberEmail are required' });
+    }
+
+    const { rows } = await pool.query('SELECT * FROM teams WHERE invite_code = $1', [inviteCode]);
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'Team not found' });
+    }
+
+    const team = mapTeamRow(rows[0]);
+
+    // Verify requesting user is the team leader
+    if (!leaderEmail || team.leaderEmail.toLowerCase().trim() !== leaderEmail.toLowerCase().trim()) {
+      return res.status(403).json({ error: 'Unauthorized: Only the Team Leader can remove participants.' });
+    }
+
+    const cleanMemberEmail = memberEmail.toLowerCase().trim();
+    
+    // Prevent removing the leader (index 0)
+    if (cleanMemberEmail === team.leaderEmail.toLowerCase().trim()) {
+      return res.status(400).json({ error: 'Cannot remove the Team Leader from the team.' });
+    }
+
+    let updatedTeammates = team.teammates.filter(
+      (m, idx) => idx === 0 || !m.email || m.email.toLowerCase().trim() !== cleanMemberEmail
+    );
+
+    const activeMemberCountOnRemove = updatedTeammates.filter(m => m.email && m.email.trim()).length;
+
+    const updateRes = await pool.query(`
+      UPDATE teams
+      SET teammates = $1, participant_count = $2
+      WHERE invite_code = $3
+      RETURNING *;
+    `, [JSON.stringify(updatedTeammates), activeMemberCountOnRemove, inviteCode]);
+
+    // Delete registration entry for removed teammate so they can re-register or join another team
+    try {
+      await pool.query(
+        'DELETE FROM registrations WHERE event_id = $1 AND LOWER(user_email) = $2',
+        [team.eventId, cleanMemberEmail]
+      );
+      await pool.query('UPDATE events SET rsvp_count = GREATEST(0, rsvp_count - 1) WHERE id = $1', [team.eventId]);
+    } catch (regErr) {
+      console.warn('Registration delete notice on member removal:', regErr.message);
+    }
+
+    const updatedTeam = mapTeamRow(updateRes.rows[0]);
+    notifyTeamUpdate({ team: updatedTeam });
+    res.json(updatedTeam);
+  } catch (err) {
+    console.error('Error removing member from team in Supabase:', err);
+    res.status(500).json({ error: 'Failed to remove member from database' });
+  }
+});
+
 // POST /api/teams/join - TEAMMATE JOINS TEAM IN SUPABASE
 app.post('/api/teams/join', async (req, res) => {
   try {
-    const { inviteCode, userEmail, userName, college, role } = req.body;
+    const { inviteCode, userEmail, userName, college, role, phone } = req.body;
     if (!inviteCode || !userEmail) {
       return res.status(400).json({ error: 'inviteCode and userEmail are required' });
     }
@@ -542,45 +836,76 @@ app.post('/api/teams/join', async (req, res) => {
     let updatedTeammates = [...team.teammates];
 
     // Check if user is already in team
-    const alreadyMember = updatedTeammates.some(t => t.email && t.email.toLowerCase() === userEmail.toLowerCase());
+    const alreadyMember = updatedTeammates.some(t => t.email && t.email.toLowerCase().trim() === userEmail.toLowerCase().trim());
     
-    // Guard: Prevent double registration for the same event without withdrawing
+    // Guard: Check event and team limits if user is not yet in the team
     if (!alreadyMember) {
+      // 1. Guard: Check overall event capacity set by admin
+      try {
+        const eventRes = await pool.query('SELECT capacity, rsvp_count FROM events WHERE id = $1', [team.eventId]);
+        if (eventRes.rows.length > 0) {
+          const { capacity, rsvp_count } = eventRes.rows[0];
+          if (capacity && rsvp_count >= capacity) {
+            return res.status(400).json({
+              error: `Event Registration Full: This event has reached its maximum total registration limit of ${capacity} participants set by the administrator.`
+            });
+          }
+        }
+      } catch (evtErr) {
+        console.warn('Event capacity check notice:', evtErr.message);
+      }
+
+      // 2. Guard: Check maximum team size capacity
+      const activeMemberCount = updatedTeammates.filter(t => t.email && t.email.trim()).length;
+      const maxAllowedMembers = 4; // Standard max team limit for hackathons
+
+      if (activeMemberCount >= maxAllowedMembers) {
+        return res.status(400).json({
+          error: `Team Capacity Reached: This team has already reached the maximum limit of ${maxAllowedMembers} members allowed for this event.`
+        });
+      }
+
+      // 3. Guard: Prevent double registration for the same event without withdrawing
       const dupCheck = await pool.query(
         'SELECT id FROM registrations WHERE event_id = $1 AND LOWER(user_email) = $2',
-        [team.eventId, userEmail.toLowerCase()]
+        [team.eventId, userEmail.toLowerCase().trim()]
       );
       if (dupCheck.rows.length > 0) {
         return res.status(409).json({ error: 'You are already registered for this event! You must withdraw your existing registration first before joining another team.' });
       }
 
       const emptySlotIndex = updatedTeammates.findIndex((t, idx) => idx > 0 && (!t.email || !t.email.trim()));
+      const assignedRole = (role && role !== '-- Select Role --') ? role.trim() : '';
       if (emptySlotIndex !== -1) {
         updatedTeammates[emptySlotIndex] = {
           ...updatedTeammates[emptySlotIndex],
           name: userName || 'Team Member',
-          email: userEmail.toLowerCase(),
+          email: userEmail.toLowerCase().trim(),
+          phone: phone || updatedTeammates[emptySlotIndex].phone || '',
           college: college || updatedTeammates[emptySlotIndex].college || '',
-          role: role || 'Software Developer'
+          role: assignedRole
         };
       } else {
         updatedTeammates.push({
           id: Date.now(),
           name: userName || 'Team Member',
-          email: userEmail.toLowerCase(),
+          email: userEmail.toLowerCase().trim(),
+          phone: phone || '',
           college: college || '',
-          role: role || 'Software Developer',
+          role: assignedRole,
           customRole: ''
         });
       }
     }
+
+    const finalActiveCount = updatedTeammates.filter(m => m.email && m.email.trim()).length;
 
     const updateRes = await pool.query(`
       UPDATE teams
       SET teammates = $1, participant_count = $2
       WHERE invite_code = $3
       RETURNING *;
-    `, [JSON.stringify(updatedTeammates), updatedTeammates.length, inviteCode]);
+    `, [JSON.stringify(updatedTeammates), finalActiveCount, inviteCode]);
 
     // Save official event registration for joining teammate in Supabase
     try {
@@ -596,7 +921,7 @@ app.post('/api/teams/join', async (req, res) => {
         userName || 'Team Member',
         userEmail.toLowerCase(),
         ticketCode,
-        JSON.stringify({ teamName: team.teamName, teamRole: role || 'Software Developer', inviteCode })
+        JSON.stringify({ teamName: team.teamName, teamRole: role || '', inviteCode })
       ]);
 
       await pool.query('UPDATE events SET rsvp_count = rsvp_count + 1 WHERE id = $1', [team.eventId]);
@@ -604,7 +929,9 @@ app.post('/api/teams/join', async (req, res) => {
       console.warn('Registration table sync notice:', regErr.message);
     }
 
-    res.json(mapTeamRow(updateRes.rows[0]));
+    const updatedTeam = mapTeamRow(updateRes.rows[0]);
+    notifyTeamUpdate({ team: updatedTeam });
+    res.json(updatedTeam);
   } catch (err) {
     console.error('Error joining team in Supabase:', err);
     res.status(500).json({ error: 'Failed to join team' });
@@ -637,10 +964,13 @@ app.post('/api/registrations/withdraw', async (req, res) => {
           if (filteredTeammates.length === 0) {
             await pool.query('DELETE FROM teams WHERE id = $1', [t.id]);
           } else {
-            await pool.query(
-              'UPDATE teams SET teammates = $1, participant_count = $2 WHERE id = $3',
+            const updRes = await pool.query(
+              'UPDATE teams SET teammates = $1, participant_count = $2 WHERE id = $3 RETURNING *',
               [JSON.stringify(filteredTeammates), filteredTeammates.length, t.id]
             );
+            if (updRes.rows.length > 0) {
+              notifyTeamUpdate({ team: mapTeamRow(updRes.rows[0]) });
+            }
           }
         }
       }
@@ -649,6 +979,7 @@ app.post('/api/registrations/withdraw', async (req, res) => {
     // 3. Decrement rsvp_count
     await pool.query('UPDATE events SET rsvp_count = GREATEST(0, rsvp_count - 1) WHERE id = $1', [eventId]);
 
+    notifyTeamUpdate({ eventId, userEmail: cleanEmail, isWithdrawn: true });
     res.json({ success: true, message: 'Registration withdrawn successfully!' });
   } catch (err) {
     console.error('Error withdrawing registration:', err);

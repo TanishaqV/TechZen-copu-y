@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useEvents } from '../context/EventContext';
 import { INITIAL_EVENTS } from '../mockData';
+import { getSavedProfileDefaults, saveProfileDefaults } from '../utils/userDefaults';
 import { X, Calendar, MapPin, Share2, Download, Ticket, Copy, Check, Send, Users, User, Code, Plus, Trash2, ShieldCheck } from 'lucide-react';
 
 export default function EventDetailModal() {
@@ -23,12 +24,15 @@ export default function EventDetailModal() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // About Me State
-  const [userProfile, setUserProfile] = useState({
-    fullName: '',
-    email: '',
-    github: '',
-    college: '',
-    role: ''
+  const [userProfile, setUserProfile] = useState(() => {
+    const defs = getSavedProfileDefaults();
+    return {
+      fullName: defs.fullName || '',
+      email: '',
+      github: '',
+      college: defs.college || '',
+      role: defs.role || ''
+    };
   });
 
   // Teammates State
@@ -54,12 +58,13 @@ export default function EventDetailModal() {
 
   useEffect(() => {
     if (selectedEventId && currentUser) {
+      const defs = getSavedProfileDefaults();
       setUserProfile({
-        fullName: currentUser.name || '',
+        fullName: currentUser.name || defs.fullName || '',
         email: currentUser.email || '',
         github: currentUser.github || 'https://github.com/',
-        college: currentUser.college || 'TechZen Institute',
-        role: currentUser.role || 'Member'
+        college: currentUser.college || defs.college || 'TechZen Institute',
+        role: currentUser.role || defs.role || 'Member'
       });
 
       setTeammates([
@@ -184,6 +189,11 @@ export default function EventDetailModal() {
 
     const savedDataKey = `techzen_event_submission_${event.id}_${currentUser.id}`;
     localStorage.setItem(savedDataKey, JSON.stringify(payload));
+    saveProfileDefaults({
+      college: userProfile.college,
+      fullName: userProfile.fullName,
+      role: userProfile.role
+    });
     setTeamSaved(true);
     showToast('✅ Team details saved successfully!');
     setTimeout(() => setTeamSaved(false), 3000);
@@ -441,14 +451,47 @@ export default function EventDetailModal() {
                   </div>
 
                   <div>
-                    <label className="block text-slate-400 mb-1">Email Address</label>
+                    <label className="block text-slate-400 mb-1 flex items-center justify-between">
+                      <span>Email Address</span>
+                      <span className="text-[10px] text-white/40 italic">Protected / Locked</span>
+                    </label>
                     <input
                       type="email"
+                      readOnly
                       value={userProfile.email}
                       onChange={(e) => setUserProfile(prev => ({ ...prev, email: e.target.value }))}
                       placeholder="Your email address"
-                      className="w-full px-3 py-2 rounded bg-[#08080a] border border-white/10 text-white focus:outline-none focus:border-red-accent"
+                      className="w-full px-3 py-2 rounded bg-[#08080a] border border-white/10 text-white/40 cursor-not-allowed focus:outline-none"
                     />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-400 mb-1">Phone / WhatsApp *</label>
+                    <div className="flex items-center">
+                      <span className="px-3 py-2 rounded-l bg-[#141418] border border-r-0 border-white/10 text-white/60 font-mono text-xs select-none">
+                        +91
+                      </span>
+                      <input
+                        type="tel"
+                        value={(() => {
+                          let p = userProfile.phone || '';
+                          if (p.startsWith('+91')) p = p.slice(3);
+                          else if (p.length === 12 && p.startsWith('91')) p = p.slice(2);
+                          return p;
+                        })()}
+                        onChange={(e) => {
+                          let val = e.target.value;
+                          if (val.startsWith('+91')) val = val.slice(3);
+                          else if (val.length === 12 && val.startsWith('91')) val = val.slice(2);
+                          val = val.replace(/\D/g, '').slice(0, 10);
+                          setUserProfile(prev => ({ ...prev, phone: val }));
+                          saveProfileDefaults({ phone: val });
+                        }}
+                        placeholder="9876543210"
+                        maxLength={10}
+                        className="w-full px-3 py-2 rounded-r bg-[#08080a] border border-white/10 text-white focus:outline-none focus:border-red-accent font-mono"
+                      />
+                    </div>
                   </div>
 
                   <div>

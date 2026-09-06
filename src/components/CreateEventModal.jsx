@@ -27,6 +27,8 @@ export default function CreateEventModal() {
   // Team & Capacity
   const [capacity, setCapacity] = useState('500');
   const [maxTeamSize, setMaxTeamSize] = useState('4');
+  const [maxTeams, setMaxTeams] = useState('50');
+  const [allowSolo, setAllowSolo] = useState(true);
   const [prizePool, setPrizePool] = useState('$5,000 Cash + Vouchers & Swag');
 
   // Media Posters & Banners
@@ -87,6 +89,8 @@ export default function CreateEventModal() {
       location: finalLocation,
       capacity: parseInt(capacity) || 500,
       maxTeamSize: parseInt(maxTeamSize) || 4,
+      maxTeams: parseInt(maxTeams) || 50,
+      allowSolo: allowSolo,
       prizePool,
       coverImage: coverImage || '/operation-cipher.png',
       bannerImage,
@@ -352,7 +356,19 @@ export default function CreateEventModal() {
                   <span>4. Team Limits & Custom Tracks</span>
                 </h3>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-white/70 mb-1 font-semibold">Allow Solo Participants? *</label>
+                    <select
+                      value={allowSolo ? 'yes' : 'no'}
+                      onChange={(e) => setAllowSolo(e.target.value === 'yes')}
+                      className="w-full bg-black/80 border border-[#ef2635]/50 px-3 py-2 text-white font-bold"
+                    >
+                      <option value="yes">YES — Allow Solo Participants (1 to Max Limit)</option>
+                      <option value="no">NO — Teams Only (2 to Max Limit Selected)</option>
+                    </select>
+                  </div>
+
                   <div>
                     <label className="block text-white/70 mb-1 font-semibold">Max Team Size Allowed *</label>
                     <select
@@ -370,9 +386,25 @@ export default function CreateEventModal() {
                       <option value="10">Up to 10 Members</option>
                     </select>
                   </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-white/70 mb-1 font-semibold">Maximum Allowed Teams *</label>
+                    <input
+                      type="number"
+                      required
+                      min="1"
+                      placeholder="e.g. 50"
+                      value={maxTeams}
+                      onChange={(e) => setMaxTeams(e.target.value)}
+                      className="w-full bg-black/80 border border-[#ef2635]/50 px-3.5 py-2 text-white font-bold"
+                    />
+                    <p className="text-[10px] text-white/40 mt-1">Admin limit on total registered teams for event & PPT submission.</p>
+                  </div>
 
                   <div>
-                    <label className="block text-white/70 mb-1 font-semibold">Venue Capacity *</label>
+                    <label className="block text-white/70 mb-1 font-semibold">Individual Capacity *</label>
                     <input
                       type="text"
                       required

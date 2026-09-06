@@ -6,7 +6,15 @@ const pool = new pg.Pool({
   connectionString,
   ssl: {
     rejectUnauthorized: false
-  }
+  },
+  max: 20,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 10000
+});
+
+// Guard against unhandled idle connection errors & network timeouts
+pool.on('error', (err) => {
+  console.warn('⚡ Supabase PostgreSQL idle client reconnected/reset:', err.message || err);
 });
 
 export async function initDatabase() {
@@ -44,6 +52,9 @@ export async function initDatabase() {
         location_type VARCHAR(50),
         location TEXT,
         capacity INTEGER DEFAULT 100,
+        max_team_size INTEGER DEFAULT 4,
+        allow_solo BOOLEAN DEFAULT TRUE,
+        max_teams INTEGER DEFAULT 50,
         rsvp_count INTEGER DEFAULT 0,
         cover_image TEXT,
         host_name VARCHAR(255),
@@ -55,6 +66,13 @@ export async function initDatabase() {
         custom_questions JSONB,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
+    `);
+
+    // Ensure columns exist on existing database
+    await client.query(`
+      ALTER TABLE events ADD COLUMN IF NOT EXISTS allow_solo BOOLEAN DEFAULT TRUE;
+      ALTER TABLE events ADD COLUMN IF NOT EXISTS max_team_size INTEGER DEFAULT 4;
+      ALTER TABLE events ADD COLUMN IF NOT EXISTS max_teams INTEGER DEFAULT 50;
     `);
 
     // Registrations table
