@@ -105,6 +105,18 @@ export async function initDatabase() {
       );
     `);
 
+    // Audit logs table for tracking registration & team edits made by admins
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS audit_logs (
+        id VARCHAR(255) PRIMARY KEY,
+        action VARCHAR(255) NOT NULL,
+        details TEXT NOT NULL,
+        target_user VARCHAR(255),
+        edited_by VARCHAR(255) NOT NULL,
+        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
     console.log('✅ Supabase Database tables created/verified successfully!');
   } catch (err) {
     console.error('❌ Database Initialization Error:', err);
