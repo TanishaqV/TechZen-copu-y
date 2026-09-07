@@ -10,7 +10,35 @@
       "destination": "/api/registrations.json"
     },
     {
-      "source": "/((?!api/|.*\\..*).*)",
+      "source": "/events/:path*",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/all-events",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/dashboard",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/user-portal",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/our-code",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/manifesto",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/sign-in",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/sign-up",
       "destination": "/index.html"
     }
   ]
