@@ -1,28 +1,9 @@
 {
   "version": 2,
-  "routes": [
+  "rewrites": [
     {
-      "src": "/api/events",
-      "dest": "/api/events.js"
-    },
-    {
-      "src": "/api/registrations",
-      "dest": "/api/registrations.js"
-    },
-    {
-      "src": "/api/teams",
-      "dest": "/api/teams.js"
-    },
-    {
-      "src": "/api/(.*)",
-      "dest": "/api/index.js"
-    },
-    {
-      "handle": "filesystem"
-    },
-    {
-      "src": "/.*",
-      "dest": "/index.html"
+      "source": "/((?!api/|.*\\..*).*)",
+      "destination": "/index.html"
     }
   ]
 }
