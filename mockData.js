@@ -6,6 +6,34 @@ export const CATEGORIES = [
 
 export const INITIAL_EVENTS = [
   {
+    id: 'event-1788625391659',
+    title: 'wef',
+    tagline: 'Community event hosted on TechZen',
+    category: 'HACKATHON',
+    badge: 'LIVE HACKATHON',
+    format: 'ONLINE',
+    locationType: 'ONLINE',
+    location: 'TechZen Platform / Online Stream',
+    date: 'June 29 - July 20, 2026',
+    time: '18:30 - 21:30 IST',
+    capacity: 100,
+    rsvpCount: 1,
+    registeredCount: 1,
+    ended: false,
+    coverImage: '/operation-cipher.png',
+    imageUrl: '/operation-cipher.png',
+    hostName: 'Tanishaq Verma Techzen',
+    hostAvatar: 'https://lh3.googleusercontent.com/a/ACg8ocLlnKOcl-oxirLpjfa_8KcUsyX1BFvg47IExOnV6WnCzZOhNg=s96-c',
+    hostRole: 'Community Admin',
+    description: 'wef',
+    tags: ['Hackathon', 'Code', 'Prizes'],
+    featured: true,
+    agenda: [
+      { time: 'Start', title: 'Registration & Coffee', speaker: 'Host' },
+      { time: 'Keynote', title: 'wef', speaker: 'Speaker' }
+    ]
+  },
+  {
     id: 'operation-cipher-2026',
     title: 'Operation Cipher 2026',
     tagline: 'A Money Heist Themed National Level Hackathon. Code. Plan. Execute. Escape.',
