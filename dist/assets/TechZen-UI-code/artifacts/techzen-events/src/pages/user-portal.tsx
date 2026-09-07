@@ -1,0 +1,35 @@
+import { Redirect, Link } from 'wouter';
+import { CalendarDays, ChevronRight, LogOut, MapPin, Ticket, UserRound } from 'lucide-react';
+import { useClerk, useAuth, useUser } from '@clerk/react';
+import { getGetMySummaryQueryKey, getListMyRegistrationsQueryKey, useGetMySummary, useListMyRegistrations } from '@workspace/api-client-react';
+import { SiteShell } from '@/components/site-shell';
+
+function portalDate(value: string) {
+  return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(value));
+}
+
+export default function UserPortal() {
+  const { isLoaded, isSignedIn } = useAuth();
+  const { user } = useUser();
+  const { signOut } = useClerk();
+  const summary = useGetMySummary({ query: { enabled: Boolean(isSignedIn), queryKey: getGetMySummaryQueryKey() } });
+  const registrations = useListMyRegistrations({ query: { enabled: Boolean(isSignedIn), queryKey: getListMyRegistrationsQueryKey() } });
+  if (!isLoaded) return <div className="min-h-[100dvh] bg-[#0b0b0b]" />;
+  if (!isSignedIn) return <Redirect to="/" />;
+  const nextEvent = summary.data?.nextEvent;
+  return (
+    <SiteShell>
+      <main className="mx-auto max-w-[1440px] px-5 pb-24 pt-14 sm:px-8 md:pt-20 lg:px-12">
+        <div className="flex flex-col justify-between gap-8 border-b border-white/10 pb-10 md:flex-row md:items-end">
+          <div><p className="font-mono text-[10px] uppercase tracking-[.25em] text-[#ef2635]">Attendee / portal</p><h1 className="mt-4 text-5xl font-semibold leading-none tracking-[-.06em] text-white sm:text-7xl">Your signal.</h1><p className="mt-5 text-base text-white/45">Welcome back, {user?.firstName || 'builder'}.</p></div>
+          <button type="button" onClick={() => signOut({ redirectUrl: '/' })} data-testid="button-portal-sign-out" className="flex items-center gap-2 self-start border border-white/15 px-4 py-2.5 text-sm text-white/60 transition-colors hover:border-[#ef2635] hover:text-white md:self-auto"><LogOut size={16} /> Sign out</button>
+        </div>
+        <div className="mt-10 grid gap-5 md:grid-cols-[1.3fr_.7fr]">
+          <div className="relative overflow-hidden border border-[#ef2635]/50 bg-[#171010] p-7 sm:p-9"><div className="absolute right-0 top-0 h-full w-1/2 bg-[linear-gradient(135deg,transparent_48%,rgba(239,38,53,.12)_48%,rgba(239,38,53,.12)_49%,transparent_49%)]" /><div className="relative"><p className="font-mono text-[10px] uppercase tracking-[.22em] text-[#ff5863]">Next up</p>{summary.isLoading ? <div className="mt-8 h-10 w-3/4 animate-pulse bg-white/10" /> : nextEvent ? <><h2 data-testid="text-next-event-title" className="mt-5 max-w-xl text-3xl font-semibold leading-tight tracking-[-.035em] text-white sm:text-4xl">{nextEvent.title}</h2><div className="mt-7 flex flex-wrap gap-x-6 gap-y-3 text-sm text-white/55"><span className="flex items-center gap-2"><CalendarDays size={16} className="text-[#ef2635]" /> {portalDate(nextEvent.date)}</span><span className="flex items-center gap-2"><MapPin size={16} className="text-[#ef2635]" /> {nextEvent.location}</span></div><Link href={`/events/${nextEvent.id}`} data-testid="link-next-event" className="mt-8 inline-flex items-center gap-2 border border-white/20 px-4 py-3 text-sm font-semibold text-white transition-all hover:border-[#ef2635]">Open event details <ChevronRight size={16} /></Link></> : <><h2 className="mt-5 max-w-md text-3xl font-semibold text-white">No upcoming rooms yet.</h2><p className="mt-4 max-w-md text-sm leading-6 text-white/45">The next good idea could be yours. Browse the calendar and find something worth showing up for.</p><Link href="/#events" data-testid="link-find-next-event" className="mt-7 inline-flex items-center gap-2 bg-[#ef2635] px-4 py-3 text-sm font-bold text-white">Find an event <ChevronRight size={16} /></Link></>}</div></div>
+          <div className="border border-white/10 bg-[#111] p-7 sm:p-9"><p className="font-mono text-[10px] uppercase tracking-[.22em] text-white/35">Your activity</p><div className="mt-9 flex items-end gap-4"><span data-testid="text-registration-count" className="text-6xl font-semibold tracking-[-.07em] text-white">{summary.isLoading ? '—' : summary.data?.registeredCount ?? 0}</span><span className="pb-2 text-sm text-white/45">events<br />registered</span></div><div className="mt-8 h-px bg-white/10" /><div className="mt-6 flex items-center gap-3 text-sm text-white/55"><Ticket size={17} className="text-[#ef2635]" /> Your builder pass is active</div><div className="mt-3 flex items-center gap-3 text-sm text-white/55"><UserRound size={17} className="text-[#ef2635]" /> {user?.primaryEmailAddress?.emailAddress || 'Account verified'}</div></div>
+        </div>
+        <section className="mt-20"><div className="flex items-end justify-between border-b border-white/10 pb-5"><div><p className="font-mono text-[10px] uppercase tracking-[.22em] text-[#ef2635]">Archive / attendance</p><h2 className="mt-3 text-3xl font-semibold tracking-[-.04em] text-white">Your registrations</h2></div><span className="font-mono text-[10px] uppercase tracking-widest text-white/30">{registrations.data?.length ?? 0} total</span></div>{registrations.isLoading ? <div className="mt-5 space-y-3">{[0,1,2].map((i) => <div key={i} className="h-24 animate-pulse border border-white/10 bg-white/[.03]" />)}</div> : registrations.isError ? <div className="mt-5 border border-[#ef2635]/30 p-7 text-sm text-white/55">Registration history is temporarily unavailable. Refresh the page to try again.</div> : !registrations.data?.length ? <div className="mt-5 border border-dashed border-white/20 p-10 text-center"><p className="font-semibold text-white">Your calendar is clear.</p><p className="mt-2 text-sm text-white/40">When you find a room, your registration will appear here.</p></div> : <div className="mt-5 space-y-3">{registrations.data.map((registration) => <Link href={`/events/${registration.event.id}`} key={registration.id} data-testid={`row-registration-${registration.id}`} className="group flex flex-col justify-between gap-5 border border-white/10 bg-[#111] p-5 transition-all hover:border-white/30 sm:flex-row sm:items-center"><div className="flex items-start gap-4"><div className="flex h-10 w-10 shrink-0 items-center justify-center bg-[#ef2635]/10 font-mono text-xs text-[#ff5863]">TZ</div><div><p className="font-semibold text-white transition-colors group-hover:text-[#ff5863]">{registration.event.title}</p><div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-white/40"><span className="flex items-center gap-1.5"><CalendarDays size={13} /> {portalDate(registration.event.date)}</span><span className="flex items-center gap-1.5"><MapPin size={13} /> {registration.event.location}</span></div></div></div><span className="flex items-center gap-2 self-end font-mono text-[10px] uppercase tracking-widest text-white/35 sm:self-auto">Registered <ChevronRight size={15} className="text-[#ef2635] transition-transform group-hover:translate-x-1" /></span></Link>)}</div>}</section>
+      </main>
+    </SiteShell>
+  );
+}
