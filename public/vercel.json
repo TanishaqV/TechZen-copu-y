@@ -1,45 +1,7 @@
 {
-  "cleanUrls": true,
   "rewrites": [
-    {
-      "source": "/api/events",
-      "destination": "/api/events.json"
-    },
-    {
-      "source": "/api/registrations",
-      "destination": "/api/registrations.json"
-    },
-    {
-      "source": "/events/:path*",
-      "destination": "/index.html"
-    },
-    {
-      "source": "/all-events",
-      "destination": "/index.html"
-    },
-    {
-      "source": "/dashboard",
-      "destination": "/index.html"
-    },
-    {
-      "source": "/user-portal",
-      "destination": "/index.html"
-    },
-    {
-      "source": "/our-code",
-      "destination": "/index.html"
-    },
-    {
-      "source": "/manifesto",
-      "destination": "/index.html"
-    },
-    {
-      "source": "/sign-in",
-      "destination": "/index.html"
-    },
-    {
-      "source": "/sign-up",
-      "destination": "/index.html"
-    }
+    { "source": "/api/events", "destination": "/api/events.json" },
+    { "source": "/api/registrations", "destination": "/api/registrations.json" },
+    { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
