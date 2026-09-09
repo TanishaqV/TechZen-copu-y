@@ -1,10 +1,15 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { INITIAL_EVENTS, INITIAL_REGISTRATIONS } from '../mockData';
+import { useAuth } from './AuthContext';
 import confetti from 'canvas-confetti';
 
 const EventContext = createContext();
 
 export function EventProvider({ children }) {
+  // EventProvider is mounted inside AuthProvider; fall back safely if it ever isn't.
+  const auth = useAuth();
+  const openAuth = auth?.openAuth;
+
   const [events, setEvents] = useState(INITIAL_EVENTS);
   const [registrations, setRegistrations] = useState(INITIAL_REGISTRATIONS);
 
@@ -87,10 +92,20 @@ export function EventProvider({ children }) {
     return () => window.removeEventListener('hashchange', handleHashChange);
   }, []);
 
+  const toastTimerRef = useRef(null);
+
   const showToast = (message, type = 'success') => {
     setToastMessage({ message, type });
-    setTimeout(() => setToastMessage(null), 4000);
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = setTimeout(() => {
+      toastTimerRef.current = null;
+      setToastMessage(null);
+    }, 4000);
   };
+
+  useEffect(() => () => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+  }, []);
 
   const createEvent = async (newEventData, currentUser) => {
     const newEvent = {
@@ -149,13 +164,23 @@ export function EventProvider({ children }) {
 
   const deleteEvent = async (eventId, adminUserEmail) => {
     try {
-      await fetch(`/api/events/${eventId}`, {
+      const res = await fetch(`/api/events/${eventId}`, {
         method: 'DELETE',
         headers: {
           'x-user-email': adminUserEmail || 'tanishaqvermatechzen@gmail.com',
           'Authorization': 'Bearer admin-secret-session'
         }
       });
+
+      // A reachable server that refused the delete must not look like a success:
+      // dropping the row locally would hide an event that still exists upstream.
+      const endpointMissing =
+        res.status === 404 || res.status === 405 || res.status === 501 ||
+        !(res.headers.get('content-type') || '').includes('application/json');
+      if (!res.ok && !endpointMissing) {
+        showToast('Could not delete that event - the server refused the request.', 'error');
+        return { success: false };
+      }
     } catch (e) {
       console.warn('API error deleting event:', e);
     }
@@ -163,6 +188,7 @@ export function EventProvider({ children }) {
     setRegistrations(prev => prev.filter(r => r.eventId !== eventId));
     if (selectedEventId === eventId) setSelectedEventId(null);
     showToast('Event deleted', 'info');
+    return { success: true };
   };
 
   const registerForEvent = async (eventId, answers, user) => {
@@ -170,7 +196,7 @@ export function EventProvider({ children }) {
     if (!targetEvent) return { success: false, error: 'Event not found' };
 
     if (!user || !user.id || !user.email) {
-      openAuth('login');
+      if (typeof openAuth === 'function') openAuth('login');
       showToast('🔒 Please sign in to register for events!', 'error');
       return { success: false, error: 'Authentication required. Please log in first.' };
     }
@@ -214,7 +240,7 @@ export function EventProvider({ children }) {
       }
 
       setRegistrations(prev => [data, ...prev]);
-      setEvents(prev => prev.map(e => e.id === eventId ? { ...e, rsvpCount: e.rsvpCount + 1 } : e));
+      setEvents(prev => prev.map(e => e.id === eventId ? { ...e, rsvpCount: (e.rsvpCount || 0) + 1 } : e));
       
       try { confetti({ particleCount: 90, spread: 70, origin: { y: 0.6 } }); } catch (err) {}
       setActiveTicket(data);
@@ -240,29 +266,80 @@ export function EventProvider({ children }) {
     return registrations.filter(r => r.eventId === eventId);
   };
 
+  // Parses the free-form `date` strings used across TechZen events
+  // ("May 12, 2026", "June 29 - July 20, 2026", "2026-06-29") into a real Date.
+  const parseEventDate = (dateStr) => {
+    if (!dateStr) return null;
+    const raw = String(dateStr).trim();
+
+    let parsed = new Date(raw);
+    if (Number.isNaN(parsed.getTime())) {
+      // Date ranges: keep the start, borrowing the year from the end when omitted.
+      const year = raw.match(/\b(\d{4})\b/);
+      const start = raw.split(/\s*(?:-|–|—|\bto\b)\s*/i)[0].replace(/,\s*$/, '').trim();
+      if (start) {
+        parsed = new Date(/\b\d{4}\b/.test(start) || !year ? start : `${start}, ${year[1]}`);
+      }
+    }
+    if (Number.isNaN(parsed.getTime())) return null;
+
+    // No clock time in the source string -> default to a sensible 10:00 UTC slot.
+    if (!/\d{1,2}:\d{2}/.test(raw)) parsed.setUTCHours(10, 0, 0, 0);
+    return parsed;
+  };
+
+  const toICSDate = (date) => {
+    const pad = (n) => String(n).padStart(2, '0');
+    return (
+      `${date.getUTCFullYear()}${pad(date.getUTCMonth() + 1)}${pad(date.getUTCDate())}` +
+      `T${pad(date.getUTCHours())}${pad(date.getUTCMinutes())}${pad(date.getUTCSeconds())}Z`
+    );
+  };
+
+  // RFC 5545 requires backslashes, semicolons, commas and newlines to be escaped.
+  const escapeICS = (value) =>
+    String(value ?? '')
+      .replace(/\\/g, '\\\\')
+      .replace(/;/g, '\\;')
+      .replace(/,/g, '\\,')
+      .replace(/\r?\n/g, '\\n');
+
   const downloadCalendarFile = (event) => {
-    const formatICSDate = (dateStr) => dateStr.replace(/\s+/g, '').replace(/,/g, '') + 'T100000Z';
+    if (!event) return;
+
+    const start = parseEventDate(event.date);
+    if (!start) {
+      showToast(`Could not read the date for "${event.title}".`, 'error');
+      return;
+    }
+    const end = new Date(start.getTime() + 2 * 60 * 60 * 1000);
+
     const icsData = [
       'BEGIN:VCALENDAR',
       'VERSION:2.0',
       'PRODID:-//TechZen Community Events//EN',
+      'CALSCALE:GREGORIAN',
       'BEGIN:VEVENT',
-      `SUMMARY:${event.title}`,
-      `DESCRIPTION:${event.description.replace(/\n/g, ' ')}`,
-      `LOCATION:${event.location}`,
-      `DTSTART:${formatICSDate(event.date)}`,
-      `DTEND:${formatICSDate(event.date)}`,
+      `UID:${event.id || `techzen-${Date.now()}`}@techzen.community`,
+      `DTSTAMP:${toICSDate(new Date())}`,
+      `SUMMARY:${escapeICS(event.title)}`,
+      `DESCRIPTION:${escapeICS(event.description)}`,
+      `LOCATION:${escapeICS(event.location)}`,
+      `DTSTART:${toICSDate(start)}`,
+      `DTEND:${toICSDate(end)}`,
       'END:VEVENT',
       'END:VCALENDAR'
     ].join('\r\n');
 
     const blob = new Blob([icsData], { type: 'text/calendar;charset=utf-8' });
+    const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
-    link.href = window.URL.createObjectURL(blob);
-    link.setAttribute('download', `${event.title.replace(/\s+/g, '_')}.ics`);
+    link.href = url;
+    link.setAttribute('download', `${String(event.title || 'techzen-event').replace(/\s+/g, '_')}.ics`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
     showToast('Calendar invitation downloaded!');
   };
 

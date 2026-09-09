@@ -35,8 +35,9 @@ export default function EventDetail() {
   const [, setLocation] = useLocation();
   const { currentUser, isAdmin, isEmailAdmin, openAuth } = useAuth();
   const { events, setSelectedEventId, deleteEvent, showToast } = useEvents();
+  const { user: clerkUser } = useUser();
 
-  const activeUserEmail = currentUser?.email || clerkUser?.emailAddresses[0]?.emailAddress || '';
+  const activeUserEmail = currentUser?.email || clerkUser?.emailAddresses?.[0]?.emailAddress || '';
   const effectiveIsAdmin = isAdmin || (isEmailAdmin ? isEmailAdmin(activeUserEmail) : false);
 
   // Find exact target event from events list or mockData

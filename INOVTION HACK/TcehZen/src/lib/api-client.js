@@ -56,7 +56,9 @@ export function useListEvents() {
 
 export function useGetEvent(eventId, options = {}) {
   const { data: events, isLoading, isError } = useListEvents();
-  const event = events?.find(e => String(e.id) === String(eventId)) || events?.[0];
+  // Returns undefined for an unknown id so callers can show a not-found state,
+  // rather than silently rendering an unrelated event.
+  const event = events?.find(e => String(e.id) === String(eventId));
   return { data: event, isLoading, isError };
 }
 
@@ -82,7 +84,16 @@ export function useRegisterForEvent() {
         body: JSON.stringify(payload)
       });
 
-      if (callbacks.onSuccess) callbacks.onSuccess();
+      if (!res.ok) {
+        const detail = await res.json().catch(() => ({}));
+        const err = new Error(detail.error || `Registration failed (${res.status})`);
+        console.warn('Registration rejected by server:', err.message);
+        if (callbacks.onError) callbacks.onError(err);
+        return;
+      }
+
+      const saved = await res.json().catch(() => payload);
+      if (callbacks.onSuccess) callbacks.onSuccess(saved);
     } catch (err) {
       console.warn('Registration API error:', err);
       if (callbacks.onError) callbacks.onError(err);

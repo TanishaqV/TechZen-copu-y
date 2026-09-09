@@ -10,6 +10,15 @@ export const ADMIN_EMAILS = [
 
 export const ADMIN_EMAIL = ADMIN_EMAILS[0];
 
+// A missing endpoint (static hosting, no API deployed) is the only condition under
+// which the offline demo session is a valid substitute for a real auth response.
+const isEndpointMissing = (res) => {
+  if (res.status === 404 || res.status === 405 || res.status === 501) return true;
+  // Dev servers and static hosts answer unknown /api paths with the SPA's HTML
+  // shell under a 200; a real auth endpoint always replies with JSON.
+  return !(res.headers.get('content-type') || '').includes('application/json');
+};
+
 export const isEmailAdmin = (email) => {
   if (!email) return false;
   const clean = email.trim().toLowerCase();
@@ -64,17 +73,25 @@ export function AuthProvider({ children }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: cleanEmail, password })
       });
-      const data = await res.json();
-      if (res.ok && data.id) {
-        const userObj = {
-          ...data,
-          name: nameOverride || data.name || (isUserAdmin ? getAdminDefaultName(cleanEmail) : cleanEmail.split('@')[0]),
-          role: isUserAdmin ? 'Admin / Organizer' : (roleOverride || data.role || 'Attendee'),
-          avatar: avatarOverride || data.avatar
-        };
-        setCurrentUser(userObj);
-        setAuthModalOpen(false);
-        return { success: true, user: userObj };
+
+      // Static deployments ship no auth endpoint at all; only that case may fall
+      // through to the local demo session below.
+      if (!isEndpointMissing(res)) {
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && data.id) {
+          const userObj = {
+            ...data,
+            name: nameOverride || data.name || (isUserAdmin ? getAdminDefaultName(cleanEmail) : cleanEmail.split('@')[0]),
+            role: isUserAdmin ? 'Admin / Organizer' : (roleOverride || data.role || 'Attendee'),
+            avatar: avatarOverride || data.avatar
+          };
+          setCurrentUser(userObj);
+          setAuthModalOpen(false);
+          return { success: true, user: userObj };
+        }
+        // A reachable server that refused these credentials must not be
+        // overridden by the offline fallback.
+        return { success: false, error: data.error || 'Invalid email or password.' };
       }
     } catch (e) {
       console.warn('API connection offline, using client auth state:', e);
@@ -128,11 +145,16 @@ export function AuthProvider({ children }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newUser)
       });
-      const data = await res.json();
-      if (res.ok && data.id) {
-        setCurrentUser(data);
-        setAuthModalOpen(false);
-        return { success: true, user: data };
+
+      if (!isEndpointMissing(res)) {
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && data.id) {
+          setCurrentUser(data);
+          setAuthModalOpen(false);
+          return { success: true, user: data };
+        }
+        // e.g. "email already registered" - surface it instead of faking success.
+        return { success: false, error: data.error || 'Could not create that account.' };
       }
     } catch (e) {
       console.warn('API connection offline, using client signup state:', e);

@@ -31,18 +31,23 @@ export default function AuthModal() {
 
   const handleAuthSuccess = async (emailToUse, pwd, nameToUse, roleToUse, avatarToUse) => {
     try {
-      if (currentMode === 'login' || !nameToUse) {
-        await login(emailToUse, pwd || 'google-auth', nameToUse, roleToUse, avatarToUse);
-      } else {
-        await signup({ name: nameToUse, email: emailToUse, role: roleToUse || 'Attendee', avatar: avatarToUse });
+      const result = (currentMode === 'login' || !nameToUse)
+        ? await login(emailToUse, pwd || 'google-auth', nameToUse, roleToUse, avatarToUse)
+        : await signup({ name: nameToUse, email: emailToUse, role: roleToUse || 'Attendee', avatar: avatarToUse });
+
+      // Keep the modal open on failure so the user can see why and retry.
+      if (result && result.success === false) {
+        setError(result.error || 'Authentication failed. Please try again.');
+        return;
+      }
+
+      closeAuth();
+      if (isSignInPath || isSignUpPath) {
+        setLocation('/');
       }
     } catch (err) {
       console.error('Auth error:', err);
-    } finally {
-      closeAuth();
-      if (location === '/sign-in' || location === '/sign-up') {
-        setLocation('/');
-      }
+      setError('Something went wrong signing you in. Please try again.');
     }
   };
 
@@ -182,11 +187,27 @@ export default function AuthModal() {
               />
             </div>
 
+            {currentMode === 'signup' && (
+              <div>
+                <label className="block text-[10px] font-mono text-zinc-400 uppercase tracking-wider mb-1.5">
+                  Full Name
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Ada Lovelace"
+                  className="w-full px-3.5 py-2.5 bg-[#181818] border border-white/15 focus:border-[#ef2635] text-white text-xs font-mono rounded-none outline-none transition"
+                />
+              </div>
+            )}
+
             <button
               type="submit"
               className="w-full py-3 px-4 bg-[#ef2635] hover:bg-[#ff3d4b] text-white text-xs font-mono font-bold uppercase tracking-wider transition cursor-pointer shadow-md"
             >
-              Sign In / Continue
+              {currentMode === 'signup' ? 'Create Account' : 'Sign In / Continue'}
             </button>
           </form>
 
