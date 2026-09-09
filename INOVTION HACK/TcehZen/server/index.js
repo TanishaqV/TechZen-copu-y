@@ -91,6 +91,7 @@ function verifyAdminAuth(req, res, next) {
 
 // Seed default events into database (always ensures INITIAL_EVENTS exist in DB)
 async function seedInitialEvents() {
+  if (!isDbConfigured) return;
   console.log('Seeding initial events into Supabase PostgreSQL...');
   for (const ev of INITIAL_EVENTS) {
     const allowSoloVal = ev.allowSolo !== undefined ? ev.allowSolo : true;
@@ -131,10 +132,17 @@ async function seedInitialEvents() {
   console.log('✅ Initial events seeded into Supabase!');
 }
 
-// Initialize database tables & seed
-initDatabase().then(() => {
-  seedInitialEvents();
-}).catch(console.error);
+// Initialize database tables & seed.
+// Guarded: without DATABASE_URL, initDatabase() resolves without connecting, so
+// an unguarded seedInitialEvents() would dial the localhost fallback and take
+// the whole process down with an unhandled ECONNREFUSED.
+if (isDbConfigured) {
+  initDatabase()
+    .then(() => seedInitialEvents())
+    .catch((err) => console.error('Database initialisation failed:', err));
+} else {
+  console.warn('DATABASE_URL is not set - API routes will answer 501 and the client will use local demo data.');
+}
 
 function mapEventRow(row) {
   return {
@@ -303,7 +311,7 @@ app.post('/api/auth/login', async (req, res) => {
         INSERT INTO users (id, name, email, password, role, bio, avatar, tech_stack)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         RETURNING *;
-      `, [newUser.id, newUser.name, newUser.email, newUser.password, newUser.role, newUser.bio, newUser.avatar, newUser.techStack]);
+      `, [newUser.id, newUser.name, newUser.email, newUser.password, newUser.role, newUser.bio, newUser.avatar, JSON.stringify(newUser.techStack || [])]);
 
       const u = insertResult.rows[0];
       return res.json({ id: u.id, name: u.name, email: u.email, role: u.role, bio: u.bio, avatar: u.avatar, techStack: u.tech_stack });

@@ -279,7 +279,7 @@ export default function HostDashboard() {
       'Member 2 Name', 'Member 2 Email', 'Member 2 College', 'Member 2 Role',
       'Member 3 Name', 'Member 3 Email', 'Member 3 College', 'Member 3 Role',
       'Member 4 Name', 'Member 4 Email', 'Member 4 College', 'Member 4 Role',
-      'Track', 'Project Title', 'PPT Presentation URL', 'PPT File Name', 'GitHub Repo URL', 'Live Demo URL', 'Tech Stack'
+      'Track', 'Project Title', 'PPT Presentation URL', 'GitHub Repo URL', 'Live Demo URL', 'Tech Stack'
     ];
 
     const rows = filteredRoster.map(r => {
@@ -301,7 +301,6 @@ export default function HostDashboard() {
         `"${p.track || 'N/A'}"`,
         `"${p.title || 'N/A'}"`,
         `"${p.pptUrl || 'N/A'}"`,
-        `"${p.pptFileName || 'N/A'}"`,
         `"${p.repoUrl || 'N/A'}"`,
         `"${p.demoUrl || 'N/A'}"`,
         `"${p.techStack || 'N/A'}"`

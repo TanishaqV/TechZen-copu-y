@@ -1,10 +1,17 @@
+import 'dotenv/config';
 import pg from 'pg';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 
 const { Pool } = pg;
 
-const connectionString = "postgresql://postgres:Taswnama%40.3@db.fwgcmdmxughkhddpirbb.supabase.co:5432/postgres";
+// Connection string comes from the environment. A hardcoded Supabase password
+// was previously committed here and published with the public repository.
+const connectionString = process.env.DATABASE_URL;
+if (!connectionString) {
+  console.error('DATABASE_URL is not set. Copy .env.example to .env and fill it in.');
+  process.exit(1);
+}
 const pool = new Pool({
   connectionString,
   ssl: { rejectUnauthorized: false }

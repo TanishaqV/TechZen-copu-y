@@ -3,9 +3,14 @@ import pg from 'pg';
 const connectionString = process.env.DATABASE_URL || '';
 export const isDbConfigured = Boolean(connectionString);
 
+// Hosted Postgres (Supabase et al.) requires TLS; a local instance normally has
+// none, and forcing SSL there fails with "server does not support SSL
+// connections", making local backend development impossible.
+const isLocalDb = /@(localhost|127\.0\.0\.1)[:/]/.test(connectionString);
+
 const pool = new pg.Pool({
   connectionString: connectionString || 'postgresql://localhost:5432/postgres',
-  ssl: connectionString ? { rejectUnauthorized: false } : false,
+  ssl: connectionString && !isLocalDb ? { rejectUnauthorized: false } : false,
   max: 3,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 5000

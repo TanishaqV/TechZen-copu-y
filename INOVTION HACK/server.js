@@ -15,7 +15,11 @@ const PORT = process.env.PORT || 5001;
 const JWT_SECRET = process.env.JWT_SECRET || 'devpulse-super-secret-key-2026';
 
 // Supabase PostgreSQL Pool
-const connectionString = process.env.DATABASE_URL || "postgresql://postgres:Taswnama%40.3@db.fwgcmdmxughkhddpirbb.supabase.co:5432/postgres";
+const connectionString = process.env.DATABASE_URL;
+if (!connectionString) {
+  console.error('DATABASE_URL is not set. Copy .env.example to .env and fill it in.');
+  process.exit(1);
+}
 const pool = new Pool({
   connectionString,
   ssl: { rejectUnauthorized: false }

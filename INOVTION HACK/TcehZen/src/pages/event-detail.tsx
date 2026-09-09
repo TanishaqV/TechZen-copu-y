@@ -1,5 +1,5 @@
-import { ArrowLeft, ArrowUpRight, CalendarDays, Check, Code, Copy, FileText, MapPin, Plus, Save, Send, ShieldCheck, Trash2, Upload, User, Users, GraduationCap, Link as LinkIcon } from 'lucide-react';
-import { useEffect, useState, useMemo, type FormEvent, type ChangeEvent } from 'react';
+import { ArrowLeft, ArrowUpRight, CalendarDays, Check, Code, Copy, FileText, MapPin, Plus, Save, Send, ShieldCheck, Trash2, User, Users, GraduationCap, Link as LinkIcon } from 'lucide-react';
+import { useEffect, useState, useMemo, type FormEvent } from 'react';
 import { Link, useParams, useLocation } from 'wouter';
 import { useSafeUser as useUser } from '@/lib/clerk-safe';
 import { SiteShell } from '@/components/site-shell';
@@ -182,7 +182,6 @@ export default function EventDetail() {
     repoUrl: '',
     demoUrl: '',
     pptUrl: '',
-    pptFileName: '',
     techStack: '',
     description: '',
     submittedAt: ''
@@ -407,9 +406,13 @@ export default function EventDetail() {
         if (data.teammates && data.teammates.length > 0) setTeammates(data.teammates);
         setIsUserRegisteredInEvent(true);
         if (showToast) showToast(`✅ Unique Team Code Generated: ${data.inviteCode}`);
+        return;
       }
+      throw new Error(`Team service responded ${res.status}`);
     } catch (e) {
+      // Previously swallowed: a non-ok response left the button doing nothing.
       console.error('Error generating team code:', e);
+      if (showToast) showToast('❌ Could not generate a team code right now. Please try again.', 'error');
     }
   };
 
@@ -507,11 +510,11 @@ export default function EventDetail() {
     for (let i = 0; i < teammates.length; i++) {
       const tm = teammates[i];
       if (i === 0 || tm.email) {
-        if (!tm.name.trim()) {
+        if (!tm.name || !tm.name.trim()) {
           setValidationError(`⚠️ Full Name is compulsory for Member #${i + 1}!`);
           return;
         }
-        if (!tm.email.trim()) {
+        if (!tm.email || !tm.email.trim()) {
           setValidationError(`⚠️ Email Address is compulsory for Member #${i + 1}!`);
           return;
         }
@@ -913,18 +916,6 @@ export default function EventDetail() {
       } catch (e) {
         console.error(e);
       }
-    }
-  };
-
-  const handlePptFileUpload = (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setProjectSubmission((prev) => ({
-        ...prev,
-        pptFileName: file.name,
-        pptUrl: prev.pptUrl || `[Attached File: ${file.name}]`
-      }));
-      setValidationError('');
     }
   };
 

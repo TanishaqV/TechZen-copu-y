@@ -7,7 +7,10 @@ import { ErrorBoundary } from './components/error-boundary';
 import { AuthProvider } from './context/AuthContext';
 import { EventProvider } from './context/EventContext';
 
-import Home from './pages/home';
+// Explicit extension: './pages/home' probes .jsx before .tsx, so a
+// case-insensitive filesystem (macOS) resolves the legacy Home.jsx while
+// Linux/Vercel resolves home.tsx - two different homepages for one route.
+import Home from './pages/home.tsx';
 import AllEvents from './pages/all-events';
 import EventDetail from './pages/event-detail';
 import UserPortal from './pages/user-portal';
