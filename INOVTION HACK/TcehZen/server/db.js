@@ -10,11 +10,26 @@ export const isDbConfigured = () => Boolean(connectionString);
 // plain postgres:// instance does not, so only enable it when it is not local.
 const isLocal = /(^|@)(localhost|127\.0\.0\.1)/.test(connectionString);
 
+// Warn loudly about the one misconfiguration that silently fails on Vercel:
+// Supabase's direct host (db.<ref>.supabase.co) resolves to IPv6 only, and
+// serverless functions have no IPv6 route. The Supavisor pooler is IPv4.
+if (connectionString && /db\.[a-z0-9]+\.supabase\.co/.test(connectionString) && process.env.VERCEL) {
+  console.warn(
+    'DATABASE_URL uses the Supabase direct connection, which is IPv6-only and ' +
+    'unreachable from serverless. Use the pooler URL instead: ' +
+    'postgres://postgres.<project-ref>:<password>@aws-0-<region>.pooler.supabase.com:6543/postgres'
+  );
+}
+
+// Each serverless instance gets its own pool, so keep it tiny; a long-lived
+// server can afford more.
+const maxConnections = process.env.VERCEL ? 1 : 10;
+
 const pool = connectionString
   ? new pg.Pool({
       connectionString,
       ssl: isLocal ? false : { rejectUnauthorized: false },
-      max: 10,
+      max: maxConnections,
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 10000
     })
