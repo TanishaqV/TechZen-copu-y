@@ -135,7 +135,15 @@ export default function HostDashboard() {
     // 3. Build roster strictly from real registrations / submissions
     if (regList.length > 0) {
       const mapped = regList.map((reg, idx) => {
-        const sub = localSubmissions[idx] || localSubmissions[0] || {};
+        // Match a local submission to its registrant by email. Pairing by array
+        // index (or falling back to localSubmissions[0]) attached one person's
+        // team, teammates and project to everyone else's roster row.
+        const regEmail = (reg.userEmail || '').trim().toLowerCase();
+        const sub = (regEmail && localSubmissions.find((candidate) => {
+          const subEmail = (candidate.userProfile?.email || candidate.teammates?.[0]?.email || '')
+            .trim().toLowerCase();
+          return subEmail && subEmail === regEmail;
+        })) || {};
         return {
           id: reg.id || `reg_${idx}`,
           ticketCode: reg.ticketCode || `TZ-${1000 + idx}`,

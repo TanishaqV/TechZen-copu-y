@@ -396,9 +396,13 @@ export default function EventDetail() {
         if (data.teammates && data.teammates.length > 0) setTeammates(data.teammates);
         setIsUserRegisteredInEvent(true);
         if (showToast) showToast(`✅ Unique Team Code Generated: ${data.inviteCode}`);
+        return;
       }
+      throw new Error(`Team service responded ${res.status}`);
     } catch (e) {
+      // Previously swallowed: the button appeared to do nothing at all.
       console.error('Error generating team code:', e);
+      if (showToast) showToast('❌ Could not generate a team code right now. Please try again.', 'error');
     }
   };
 
@@ -408,10 +412,12 @@ export default function EventDetail() {
     setTimeout(() => setCopiedLink(false), 2500);
   };
 
-  const handleDeleteCurrentEvent = () => {
+  const handleDeleteCurrentEvent = async () => {
     if (window.confirm(`⚠️ ADMIN ACTION:\nAre you sure you want to delete "${displayEvent.title}"?\n\nThis will remove the event post from the site and database.`)) {
-      deleteEvent(displayEvent.id);
-      setLocation('/all-events');
+      const result = await deleteEvent(displayEvent.id);
+      // Stay put if the server refused, so the admin sees the error instead of
+      // landing on a list where the event is still present.
+      if (!result || result.success !== false) setLocation('/all-events');
     }
   };
 
@@ -496,11 +502,11 @@ export default function EventDetail() {
     for (let i = 0; i < teammates.length; i++) {
       const tm = teammates[i];
       if (i === 0 || tm.email) {
-        if (!tm.name.trim()) {
+        if (!tm.name || !tm.name.trim()) {
           setValidationError(`⚠️ Full Name is compulsory for Member #${i + 1}!`);
           return;
         }
-        if (!tm.email.trim()) {
+        if (!tm.email || !tm.email.trim()) {
           setValidationError(`⚠️ Email Address is compulsory for Member #${i + 1}!`);
           return;
         }
@@ -971,6 +977,9 @@ export default function EventDetail() {
       participantCount: processedTeammates.length,
       teammates: processedTeammates,
       userProfile,
+      // Same storage key as handleSaveTeamDetails: omitting this dropped the
+      // team's invite code on every project submission.
+      teamInviteCode,
       project: {
         ...projectSubmission,
         submittedAt: new Date().toISOString()

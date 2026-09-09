@@ -120,7 +120,16 @@ export function EventProvider({ children }) {
       location: newEventData.location,
       capacity: parseInt(newEventData.capacity) || 100,
       maxTeamSize: parseInt(newEventData.maxTeamSize) || 4,
+      maxTeams: parseInt(newEventData.maxTeams) || 50,
       allowSolo: newEventData.allowSolo !== undefined ? newEventData.allowSolo : true,
+      // Collected by CreateEventModal; previously dropped on the floor here, so
+      // they never reached the event object or the API payload.
+      deadlineDate: newEventData.deadlineDate || '',
+      prizePool: newEventData.prizePool || '',
+      bannerImage: newEventData.bannerImage || '',
+      sponsorLogo: newEventData.sponsorLogo || '',
+      tracks: newEventData.tracks || [],
+      rules: newEventData.rules || '',
       rsvpCount: 0,
       coverImage: newEventData.coverImage || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80',
       hostName: currentUser?.name || 'TechZen Community',

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Route, Switch } from 'wouter';
+import { Route, Switch, useLocation } from 'wouter';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ClerkProvider } from '@clerk/react';
 import { GoogleOAuthProvider } from '@react-oauth/google';
@@ -7,7 +7,10 @@ import { ErrorBoundary } from './components/error-boundary';
 import { AuthProvider } from './context/AuthContext';
 import { EventProvider } from './context/EventContext';
 
-import Home from './pages/home';
+// Explicit extension: './pages/home' probes .jsx before .tsx, so on a
+// case-insensitive filesystem (macOS) it resolves to the legacy Home.jsx
+// while Linux/Vercel resolves home.tsx - two different homepages.
+import Home from './pages/home.tsx';
 import AllEvents from './pages/all-events';
 import EventDetail from './pages/event-detail';
 import UserPortal from './pages/user-portal';
@@ -37,9 +40,17 @@ function SafeClerkProvider({ children }) {
   return <>{children}</>;
 }
 
+// ErrorBoundary keeps showing its fallback until something resets it. Keying it
+// on the route means navigating away from a broken page recovers the app instead
+// of leaving the whole site stuck behind "Something went wrong".
+function RoutedErrorBoundary({ children }) {
+  const [location] = useLocation();
+  return <ErrorBoundary resetKey={location}>{children}</ErrorBoundary>;
+}
+
 export default function App() {
   return (
-    <ErrorBoundary>
+    <RoutedErrorBoundary>
       <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
         <SafeClerkProvider>
           <QueryClientProvider client={queryClient}>
@@ -68,6 +79,6 @@ export default function App() {
           </QueryClientProvider>
         </SafeClerkProvider>
       </GoogleOAuthProvider>
-    </ErrorBoundary>
+    </RoutedErrorBoundary>
   );
 }
