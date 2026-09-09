@@ -1,17 +1,20 @@
 import express from 'express';
 import cors from 'cors';
 import crypto from 'crypto';
-import pool, { initDatabase } from './db.js';
+import pool, { initDatabase, isDbConfigured } from './db.js';
 import { INITIAL_EVENTS } from '../src/mockData.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-const ADMIN_EMAILS = [
+const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || [
   'tanishaqvermatechzen@gmail.com',
   'ishaan.m1608@gmail.com',
   'techzen.innovation@gmail.com'
-];
+].join(','))
+  .split(',')
+  .map((e) => e.trim().toLowerCase())
+  .filter(Boolean);
 const ADMIN_EMAIL = ADMIN_EMAILS[0];
 
 function isEmailAdmin(email) {
@@ -25,21 +28,54 @@ const allowedOrigins = [
   'http://localhost:3000',
   'http://localhost:5173',
   'http://127.0.0.1:3000',
-  process.env.CLIENT_ORIGIN
+  'http://127.0.0.1:4173',
+  process.env.CLIENT_ORIGIN,
+  // On Vercel the frontend and API share an origin, which was not whitelisted -
+  // every same-origin POST from the deployed site was rejected.
+  process.env.VERCEL_URL && `https://${process.env.VERCEL_URL}`,
+  process.env.VERCEL_BRANCH_URL && `https://${process.env.VERCEL_BRANCH_URL}`
 ].filter(Boolean);
 
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error('CORS policy: Access denied for origin'));
-    }
+    // No Origin header = same-origin or a non-browser client.
+    if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+    // Any deployment of this project on vercel.app is our own frontend.
+    if (/^https:\/\/[a-z0-9-]+\.vercel\.app$/.test(origin)) return callback(null, true);
+    return callback(new Error('CORS policy: Access denied for origin'));
   },
   credentials: true
 }));
 
 app.use(express.json());
+
+// Without a database the API cannot serve anything real. Answering 501 (rather
+// than crashing with a 500) is what lets the client fall back to its local demo
+// data instead of showing errors - see isEndpointMissing in AuthContext.
+app.use('/api', (req, res, next) => {
+  if (!isDbConfigured()) {
+    return res.status(501).json({
+      error: 'Database not configured. Set DATABASE_URL to enable the API.'
+    });
+  }
+  next();
+});
+
+// Serverless containers start cold, so make sure the schema exists before the
+// first query. Cached as a promise so concurrent requests only migrate once.
+let schemaReady = null;
+app.use('/api', (req, res, next) => {
+  if (!schemaReady) {
+    schemaReady = initDatabase().catch((err) => {
+      schemaReady = null; // allow a later request to retry
+      throw err;
+    });
+  }
+  schemaReady.then(() => next()).catch((err) => {
+    console.error('Schema initialisation failed:', err);
+    res.status(503).json({ error: 'Database unavailable' });
+  });
+});
 
 // 2. Password Hashing Utilities (crypto.scryptSync)
 function hashPassword(password) {
@@ -52,8 +88,16 @@ function hashPassword(password) {
 function verifyPassword(password, storedPassword) {
   if (!password || !storedPassword || !storedPassword.includes(':')) return false;
   const [salt, storedHash] = storedPassword.split(':');
-  const hash = crypto.scryptSync(password, salt, 64).toString('hex');
-  return crypto.timingSafeEqual(Buffer.from(hash, 'hex'), Buffer.from(storedHash, 'hex'));
+  try {
+    const hash = Buffer.from(crypto.scryptSync(password, salt, 64).toString('hex'), 'hex');
+    const expected = Buffer.from(storedHash, 'hex');
+    // timingSafeEqual throws on a length mismatch, which a malformed stored
+    // value would trigger - treat that as "does not match", not a 500.
+    if (hash.length !== expected.length) return false;
+    return crypto.timingSafeEqual(hash, expected);
+  } catch {
+    return false;
+  }
 }
 
 // 3. Admin Authorization Middleware (Fixes Spoofable Admin Check & Unprotected DELETE)
@@ -109,16 +153,19 @@ async function seedInitialEvents() {
     `, [
       ev.id, ev.title, ev.tagline, ev.category, ev.badge, ev.date, ev.time, ev.locationType || ev.format || 'ONLINE', ev.location,
       ev.capacity || 100, maxTeamVal, allowSoloVal, ev.rsvpCount || 0, ev.coverImage || ev.imageUrl, ev.hostName, ev.hostAvatar, ev.hostRole,
-      ev.description, ev.tags || [], JSON.stringify(ev.agenda || []), JSON.stringify(ev.customQuestions || [])
+      ev.description, JSON.stringify(ev.tags || []), JSON.stringify(ev.agenda || []), JSON.stringify(ev.customQuestions || [])
     ]);
   }
   console.log('✅ Initial events seeded into Supabase!');
 }
 
 // Initialize database tables & seed
-initDatabase().then(() => {
-  seedInitialEvents();
-}).catch(console.error);
+// Skipped when no database is configured (so the API can still answer 501
+// instead of crash-looping) and on Vercel, where the middleware above handles
+// schema setup per cold start.
+if (isDbConfigured() && !process.env.VERCEL) {
+  initDatabase().then(() => seedInitialEvents()).catch(console.error);
+}
 
 function mapEventRow(row) {
   return {
@@ -190,7 +237,7 @@ app.post('/api/events', verifyAdminAuth, async (req, res) => {
     `, [
       ev.id, ev.title, ev.tagline, ev.category, ev.badge || ev.category, ev.date, ev.time, ev.locationType, ev.location,
       ev.capacity || 100, maxTeamVal, allowSoloVal, maxTeamsVal, 0, ev.coverImage, ev.hostName || 'TechZen Admin', ev.hostAvatar, 'Community Admin',
-      ev.description, ev.tags || [], JSON.stringify(ev.agenda || []), JSON.stringify(ev.customQuestions || [])
+      ev.description, JSON.stringify(ev.tags || []), JSON.stringify(ev.agenda || []), JSON.stringify(ev.customQuestions || [])
     ]);
 
     res.status(201).json(mapEventRow(rows[0]));
@@ -231,7 +278,7 @@ app.post('/api/auth/signup', async (req, res) => {
     `, [
       u.id || `usr-${Date.now()}`, u.name, u.email.toLowerCase(), secureHashedPassword,
       isAdminUser ? 'Admin / Organizer' : (u.role || 'Attendee'),
-      u.bio || '', u.avatar || '', u.techStack || [], u.github || '', u.linkedin || ''
+      u.bio || '', u.avatar || '', JSON.stringify(u.techStack || []), u.github || '', u.linkedin || ''
     ]);
 
     const user = rows[0];
@@ -287,7 +334,7 @@ app.post('/api/auth/login', async (req, res) => {
         INSERT INTO users (id, name, email, password, role, bio, avatar, tech_stack)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         RETURNING *;
-      `, [newUser.id, newUser.name, newUser.email, newUser.password, newUser.role, newUser.bio, newUser.avatar, newUser.techStack]);
+      `, [newUser.id, newUser.name, newUser.email, newUser.password, newUser.role, newUser.bio, newUser.avatar, JSON.stringify(newUser.techStack || [])]);
 
       const u = insertResult.rows[0];
       return res.json({ id: u.id, name: u.name, email: u.email, role: u.role, bio: u.bio, avatar: u.avatar, techStack: u.tech_stack });

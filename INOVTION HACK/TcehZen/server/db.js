@@ -1,126 +1,137 @@
 import pg from 'pg';
 
-const connectionString = 'postgresql://postgres:Tm_Ee^MVJ9@vvyk@db.zkuewwwdlydsfpzrfeab.supabase.co:5432/postgres';
+// Connection details come from the environment only. A hardcoded fallback was
+// previously committed here, which published a live database password.
+const connectionString = process.env.DATABASE_URL || '';
 
-const pool = new pg.Pool({
-  connectionString,
-  ssl: {
-    rejectUnauthorized: false
-  },
-  max: 20,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 10000
-});
+export const isDbConfigured = () => Boolean(connectionString);
 
-// Guard against unhandled idle connection errors & network timeouts
-pool.on('error', (err) => {
-  console.warn('⚡ Supabase PostgreSQL idle client reconnected/reset:', err.message || err);
-});
+// Supabase (and most hosted Postgres) require TLS. Local development against a
+// plain postgres:// instance does not, so only enable it when it is not local.
+const isLocal = /(^|@)(localhost|127\.0\.0\.1)/.test(connectionString);
+
+const pool = connectionString
+  ? new pg.Pool({
+      connectionString,
+      ssl: isLocal ? false : { rejectUnauthorized: false },
+      max: 10,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 10000
+    })
+  : null;
+
+if (pool) {
+  // Guard against unhandled idle connection errors & network timeouts
+  pool.on('error', (err) => {
+    console.warn('PostgreSQL idle client reset:', err.message || err);
+  });
+} else {
+  console.warn('DATABASE_URL is not set - the API will report 501 and the client will use its local demo data.');
+}
 
 export async function initDatabase() {
+  if (!pool) throw new Error('DATABASE_URL is not set');
   const client = await pool.connect();
   try {
-    console.log('Connecting to Supabase PostgreSQL database...');
-
-    // Users table
     await client.query(`
       CREATE TABLE IF NOT EXISTS users (
         id VARCHAR(255) PRIMARY KEY,
         name VARCHAR(255) NOT NULL,
         email VARCHAR(255) UNIQUE NOT NULL,
-        password VARCHAR(255),
-        role VARCHAR(50) DEFAULT 'Attendee',
+        password TEXT,
+        role VARCHAR(255),
         bio TEXT,
         avatar TEXT,
-        tech_stack TEXT[],
-        github VARCHAR(255),
-        linkedin VARCHAR(255),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        tech_stack JSONB DEFAULT '[]'::jsonb,
+        github TEXT,
+        linkedin TEXT,
+        created_at TIMESTAMPTZ DEFAULT NOW()
       );
     `);
 
-    // Events table
     await client.query(`
       CREATE TABLE IF NOT EXISTS events (
         id VARCHAR(255) PRIMARY KEY,
-        title VARCHAR(255) NOT NULL,
+        title VARCHAR(500) NOT NULL,
         tagline TEXT,
-        category VARCHAR(100),
-        badge VARCHAR(100),
-        date VARCHAR(100),
-        time VARCHAR(100),
-        location_type VARCHAR(50),
+        category VARCHAR(255),
+        badge VARCHAR(255),
+        date VARCHAR(255),
+        time VARCHAR(255),
+        location_type VARCHAR(255),
         location TEXT,
         capacity INTEGER DEFAULT 100,
         max_team_size INTEGER DEFAULT 4,
-        allow_solo BOOLEAN DEFAULT TRUE,
         max_teams INTEGER DEFAULT 50,
+        allow_solo BOOLEAN DEFAULT TRUE,
         rsvp_count INTEGER DEFAULT 0,
         cover_image TEXT,
+        banner_image TEXT,
+        sponsor_logo TEXT,
         host_name VARCHAR(255),
         host_avatar TEXT,
         host_role VARCHAR(255),
         description TEXT,
-        tags TEXT[],
-        agenda JSONB,
-        custom_questions JSONB,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        deadline_date VARCHAR(255),
+        prize_pool TEXT,
+        rules TEXT,
+        tracks JSONB DEFAULT '[]'::jsonb,
+        tags JSONB DEFAULT '[]'::jsonb,
+        agenda JSONB DEFAULT '[]'::jsonb,
+        custom_questions JSONB DEFAULT '[]'::jsonb,
+        created_at TIMESTAMPTZ DEFAULT NOW()
       );
     `);
 
-    // Ensure columns exist on existing database
-    await client.query(`
-      ALTER TABLE events ADD COLUMN IF NOT EXISTS allow_solo BOOLEAN DEFAULT TRUE;
-      ALTER TABLE events ADD COLUMN IF NOT EXISTS max_team_size INTEGER DEFAULT 4;
-      ALTER TABLE events ADD COLUMN IF NOT EXISTS max_teams INTEGER DEFAULT 50;
-    `);
-
-    // Registrations table
     await client.query(`
       CREATE TABLE IF NOT EXISTS registrations (
         id VARCHAR(255) PRIMARY KEY,
-        event_id VARCHAR(255) REFERENCES events(id) ON DELETE CASCADE,
+        event_id VARCHAR(255) NOT NULL REFERENCES events(id) ON DELETE CASCADE,
         user_id VARCHAR(255),
         user_name VARCHAR(255),
         user_email VARCHAR(255),
-        ticket_code VARCHAR(100) UNIQUE NOT NULL,
-        answers JSONB,
+        ticket_code VARCHAR(255),
+        answers JSONB DEFAULT '{}'::jsonb,
         checked_in BOOLEAN DEFAULT FALSE,
-        registered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        registered_at TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE (event_id, user_email)
       );
     `);
 
-    // Teams table for live multi-user team onboarding & invite links
     await client.query(`
       CREATE TABLE IF NOT EXISTS teams (
         id VARCHAR(255) PRIMARY KEY,
         event_id VARCHAR(255) REFERENCES events(id) ON DELETE CASCADE,
         invite_code VARCHAR(255) UNIQUE NOT NULL,
-        team_name VARCHAR(255) NOT NULL,
+        team_name VARCHAR(500) NOT NULL,
         leader_name VARCHAR(255) NOT NULL,
         leader_email VARCHAR(255) NOT NULL,
         participant_count INTEGER DEFAULT 1,
-        teammates JSONB NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        teammates JSONB NOT NULL DEFAULT '[]'::jsonb,
+        project JSONB,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
       );
     `);
 
-    // Audit logs table for tracking registration & team edits made by admins
     await client.query(`
       CREATE TABLE IF NOT EXISTS audit_logs (
         id VARCHAR(255) PRIMARY KEY,
-        action VARCHAR(255) NOT NULL,
-        details TEXT NOT NULL,
+        action VARCHAR(500),
+        details TEXT,
         target_user VARCHAR(255),
-        edited_by VARCHAR(255) NOT NULL,
-        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        edited_by VARCHAR(255),
+        timestamp TIMESTAMPTZ DEFAULT NOW()
       );
     `);
 
-    console.log('✅ Supabase Database tables created/verified successfully!');
-  } catch (err) {
-    console.error('❌ Database Initialization Error:', err);
-    throw err;
+    // Indexes for the lookups the API actually performs.
+    await client.query('CREATE INDEX IF NOT EXISTS idx_reg_event ON registrations(event_id);');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_reg_email ON registrations(LOWER(user_email));');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_teams_event ON teams(event_id);');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_teams_leader ON teams(LOWER(leader_email));');
+
+    console.log('Database schema ready.');
   } finally {
     client.release();
   }

@@ -1,10 +1,6 @@
 {
   "rewrites": [
-    { "source": "/api/events", "destination": "/api/events.json" },
-    { "source": "/api/registrations", "destination": "/api/registrations.json" },
-    { "source": "/api/teams/user-team", "destination": "/api/teams/user-team.json" },
-    { "source": "/api/teams/stream", "destination": "/api/teams/stream" },
-    { "source": "/api/teams/:path*", "destination": "/api/teams/user-team.json" },
-    { "source": "/((?!api).*)", "destination": "/index.html" }
+    { "source": "/api/(.*)", "destination": "/api/index" },
+    { "source": "/((?!api/).*)", "destination": "/index.html" }
   ]
 }
