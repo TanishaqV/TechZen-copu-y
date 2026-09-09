@@ -1,8 +1,13 @@
+import 'dotenv/config';
 import pg from 'pg';
 const { Pool } = pg;
-
-// Supabase PostgreSQL Connection String (URL Encoded Password for @ character)
-const connectionString = "postgresql://postgres:Taswnama%40.3@db.fwgcmdmxughkhddpirbb.supabase.co:5432/postgres";
+// Connection string comes from the environment. A hardcoded Supabase password
+// was previously committed here and published with the repository.
+const connectionString = process.env.DATABASE_URL;
+if (!connectionString) {
+  console.error('DATABASE_URL is not set. Copy .env.example to .env and fill it in.');
+  process.exit(1);
+}
 
 const pool = new Pool({
   connectionString,
